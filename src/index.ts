@@ -217,6 +217,8 @@ export class TokenInjectableDockerBuilder extends Construct {
       }
     }
 
+    effectiveExclude = effectiveExclude.filter(path => path !== "Dockerfile");
+
     // Wrap the source folder as an S3 asset for CodeBuild to use
     const sourceAsset = new Asset(this, 'SourceAsset', {
       path: sourcePath,
