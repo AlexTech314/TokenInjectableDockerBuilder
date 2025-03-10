@@ -205,8 +205,8 @@ export class TokenInjectableDockerBuilder extends Construct {
       imageScanOnPush: true,
     });
 
-    let effectiveExclude = exclude;
-    if (!effectiveExclude) {
+    let effectiveExclude = exclude || [];
+    if (effectiveExclude.length === 0) {
       const dockerignorePath = path.join(sourcePath, '.dockerignore');
       if (fs.existsSync(dockerignorePath)) {
         const fileContent = fs.readFileSync(dockerignorePath, 'utf8');
