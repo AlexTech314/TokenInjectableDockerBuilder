@@ -205,8 +205,8 @@ export class TokenInjectableDockerBuilder extends Construct {
       imageScanOnPush: true,
     });
 
-    let effectiveExclude = exclude;
-    if (!effectiveExclude) {
+    let effectiveExclude = exclude || [];
+    if (effectiveExclude.length === 0) {
       const dockerignorePath = path.join(sourcePath, '.dockerignore');
       if (fs.existsSync(dockerignorePath)) {
         const fileContent = fs.readFileSync(dockerignorePath, 'utf8');
@@ -216,6 +216,8 @@ export class TokenInjectableDockerBuilder extends Construct {
           .filter((line: string) => line.length > 0 && !line.startsWith('#'));
       }
     }
+
+    effectiveExclude = effectiveExclude.filter(path => path !== "Dockerfile");
 
     // Wrap the source folder as an S3 asset for CodeBuild to use
     const sourceAsset = new Asset(this, 'SourceAsset', {
