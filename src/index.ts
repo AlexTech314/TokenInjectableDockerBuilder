@@ -238,7 +238,7 @@ export class TokenInjectableDockerBuilder extends Construct {
     });
 
     // Create an S3 bucket to store the CodeBuild artifacts
-    const artifactBucket = new Bucket(this, 'ArtifactBucket', {
+    const artifactBucket = props.artifactBucket ?? new Bucket(this, 'ArtifactBucket', {
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
