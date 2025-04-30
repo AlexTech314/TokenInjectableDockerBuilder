@@ -130,6 +130,20 @@ export interface TokenInjectableDockerBuilderProps {
    * @default - No file path exclusions
    */
   readonly exclude?: string[];
+
+  /**
+   * The bucket that will be used to store the artifact
+   *
+   * @default - This construct will deploy a default bucket
+   */
+  readonly artifactBucket?: Bucket;
+
+  /**
+   * Specify this when using the `artifactBucket` prop to store the artifact within the specified prefix.
+   *
+   * @default - If `artifactBucket` is passed, and this is not, the bucket will use the root of the directory. Otherwise, no action will take place
+   */
+  readonly artifactBuketPrefix?: string;
 }
 
 /**
