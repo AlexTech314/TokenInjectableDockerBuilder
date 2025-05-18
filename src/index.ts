@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { CustomResource, Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { CustomResource, Duration } from 'aws-cdk-lib';
 import { Project, Source, LinuxBuildImage, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { IVpc, ISecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 import { Repository, RepositoryEncryption, TagStatus } from 'aws-cdk-lib/aws-ecr';
@@ -10,7 +10,6 @@ import { ContainerImage } from 'aws-cdk-lib/aws-ecs';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { Runtime, Code, DockerImageCode, Function } from 'aws-cdk-lib/aws-lambda';
-import { Bucket, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
 import { Provider } from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
@@ -217,17 +216,18 @@ export class TokenInjectableDockerBuilder extends Construct {
       }
     }
 
+    // Ensure Dockerfile is never excluded
+    if (effectiveExclude) {
+      effectiveExclude = effectiveExclude.filter(
+        (pattern: string) => pattern.toLowerCase() !== 'dockerfile',
+      );
+    }
+
     // Wrap the source folder as an S3 asset for CodeBuild to use
     const sourceAsset = new Asset(this, 'SourceAsset', {
       path: sourcePath,
       exclude: effectiveExclude,
-    });
 
-    // Create an S3 bucket to store the CodeBuild artifacts
-    const artifactBucket = new Bucket(this, 'ArtifactBucket', {
-      removalPolicy: RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
     });
 
     // Convert buildArgs to a CLI-friendly string
@@ -364,7 +364,6 @@ export class TokenInjectableDockerBuilder extends Construct {
       }),
     );
 
-    artifactBucket.grantReadWrite(isCompleteHandlerFunction);
     // Conditionally allow encryption if a key is used
     if (encryptionKey) {
       encryptionKey.grantEncryptDecrypt(onEventHandlerFunction);
