@@ -8,7 +8,7 @@ const project = new awscdk.AwsCdkConstructLibrary({
   cdkVersion: '2.173.2',
   defaultReleaseBranch: 'main',
   packageManager: NodePackageManager.NPM,
-  jsiiVersion: '~5.5.0',
+  jsiiVersion: '~5.9.4',
   name: 'token-injectable-docker-builder',
   projenrcTs: true,
   repositoryUrl: 'https://github.com/AlexTech314/TokenInjectableDockerBuilder.git',
@@ -55,10 +55,10 @@ project.npmignore!.exclude(...common_exclude, 'lib/integ.*', 'test-docker');
 project.npmignore!.include('isComplete/*.js', 'onEvent/*.js');
 
 project.addScripts({
-  'local-deploy': 'cdk deploy --app "npx ts-node src/integ.default.ts"',
-  'local-deploy-no-rollback': 'cdk deploy --no-rollback --app "npx ts-node src/integ.default.ts"',
-  'local-destroy': 'cdk destroy --app "npx ts-node src/integ.default.ts"',
-  'local-synth': 'cdk synth --app "npx ts-node src/integ.default.ts"',
+  'local-deploy': 'npx cdk deploy --app "npx ts-node src/integ.default.ts"',
+  'local-deploy-no-rollback': 'npx cdk deploy --no-rollback --app "npx ts-node src/integ.default.ts"',
+  'local-destroy': 'npx cdk destroy --app "npx ts-node src/integ.default.ts"',
+  'local-synth': 'npx cdk synth --app "npx ts-node src/integ.default.ts"',
 });
 
 project.synth();
