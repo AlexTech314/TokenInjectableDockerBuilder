@@ -23,6 +23,7 @@ For example, a Next.js frontend Docker image may require an API Gateway URL as a
 - **Integration with ECS and Lambda**: Provides outputs for use in AWS ECS and AWS Lambda.
 - **Custom Build Query Interval**: Configure how frequently the custom resource polls for build completion using the `completenessQueryInterval` property (defaults to 30 seconds).
 - **Custom Dockerfile**: Specify a custom Dockerfile name via the `file` property (e.g. `Dockerfile.production`), allowing multiple Docker images from the same source directory.
+- **ECR Docker Layer Caching**: By default, builds use `docker buildx` with ECR as a remote cache backend, reducing build times by reusing layers across deploys. Set `cacheDisabled: true` to force a clean build from scratch.
 
 ---
 
@@ -72,6 +73,7 @@ pip install token-injectable-docker-builder
 | `completenessQueryInterval`| `Duration`                  | No       | The query interval for checking if the CodeBuild project has completed. This determines how frequently the custom resource polls for build completion. Defaults to `Duration.seconds(30)`.                                                                                                   |
 | `exclude`                  | `string[]`                  | No       | A list of file paths in the Docker directory to exclude from the S3 asset bundle. If a `.dockerignore` file is present in the source directory, its contents will be used if this prop is not set. Defaults to an empty list or `.dockerignore` contents.                                    |
 | `file`                     | `string`                    | No       | The name of the Dockerfile to use for the build. Passed as `--file` to `docker build`. Useful when a project has multiple Dockerfiles (e.g. `Dockerfile.production`, `Dockerfile.admin`). Defaults to `Dockerfile`.                                                                        |
+| `cacheDisabled`           | `boolean`                   | No       | When `true`, disables Docker layer caching. Every build runs from scratch. Use for debugging, corrupted cache, or major dependency changes. Defaults to `false`.                                                                                                                          |
 
 ---
 
@@ -377,6 +379,7 @@ The construct automatically grants permissions for:
 - **ECR Repository**: Automatically creates an ECR repository with lifecycle rules to manage image retention, encryption with a KMS key, and image scanning on push.
 - **Build Query Interval**: The polling frequency for checking build completion can be customized via the `completenessQueryInterval` property.
 - **Custom Dockerfile**: Use the `file` property to specify a Dockerfile other than the default `Dockerfile`. This is passed as the `--file` flag to `docker build`.
+- **Docker Layer Caching**: By default, builds use ECR as a remote cache backend (via `docker buildx`), which can reduce build times by up to 25%. Set `cacheDisabled: true` when you need a clean build—for example, when debugging, the cache is corrupted, or after major dependency upgrades.
 
 ---
 
