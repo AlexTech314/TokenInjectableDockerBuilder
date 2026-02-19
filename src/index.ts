@@ -246,12 +246,14 @@ export class TokenInjectableDockerBuilder extends Construct {
       }
     }
 
-    // Ensure the target Dockerfile is never excluded
+    // Ensure the target Dockerfile is never excluded (handles globs like "Dockerfile*")
     const dockerFileName = dockerFile ?? 'Dockerfile';
     if (effectiveExclude) {
-      effectiveExclude = effectiveExclude.filter(
-        (pattern: string) => pattern.toLowerCase() !== dockerFileName.toLowerCase(),
-      );
+      effectiveExclude = effectiveExclude.filter((pattern: string) => {
+        const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
+        return !regex.test(dockerFileName);
+      });
     }
 
     // Wrap the source folder as an S3 asset for CodeBuild to use
