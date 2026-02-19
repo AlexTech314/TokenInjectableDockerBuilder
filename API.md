@@ -155,6 +155,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | --- | --- | --- |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.path">path</a></code> | <code>string</code> | The path to the directory containing the Dockerfile or source code. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.buildArgs">buildArgs</a></code> | <code>{[ key: string ]: string}</code> | Build arguments to pass to the Docker build process. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.buildLogGroup">buildLogGroup</a></code> | <code>aws-cdk-lib.aws_logs.ILogGroup</code> | CloudWatch log group for CodeBuild build logs. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.cacheDisabled">cacheDisabled</a></code> | <code>boolean</code> | When `true`, disables Docker layer caching. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval">completenessQueryInterval</a></code> | <code>aws-cdk-lib.Duration</code> | The query interval for checking if the CodeBuild project has completed. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.dockerLoginSecretArn">dockerLoginSecretArn</a></code> | <code>string</code> | The ARN of the AWS Secrets Manager secret containing Docker login credentials. |
@@ -204,6 +205,22 @@ These are transformed into `--build-arg KEY=VALUE` flags.
 }
 ```
 
+
+##### `buildLogGroup`<sup>Optional</sup> <a name="buildLogGroup" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.buildLogGroup"></a>
+
+```typescript
+public readonly buildLogGroup: ILogGroup;
+```
+
+- *Type:* aws-cdk-lib.aws_logs.ILogGroup
+- *Default:* CodeBuild default logging (logs are deleted on rollback)
+
+CloudWatch log group for CodeBuild build logs.
+
+When provided with a RETAIN removal policy, build logs survive rollbacks
+and stack deletion for debugging.
+
+---
 
 ##### `cacheDisabled`<sup>Optional</sup> <a name="cacheDisabled" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.cacheDisabled"></a>
 

@@ -10,6 +10,7 @@ import { ContainerImage } from 'aws-cdk-lib/aws-ecs';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Key } from 'aws-cdk-lib/aws-kms';
 import { Runtime, Code, DockerImageCode, Function } from 'aws-cdk-lib/aws-lambda';
+import { ILogGroup } from 'aws-cdk-lib/aws-logs';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
 import { Provider } from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
@@ -146,6 +147,15 @@ export interface TokenInjectableDockerBuilderProps {
    * @default false
    */
   readonly cacheDisabled?: boolean;
+
+  /**
+   * CloudWatch log group for CodeBuild build logs.
+   * When provided with a RETAIN removal policy, build logs survive rollbacks
+   * and stack deletion for debugging.
+   *
+   * @default - CodeBuild default logging (logs are deleted on rollback)
+   */
+  readonly buildLogGroup?: ILogGroup;
 }
 
 /**
@@ -195,6 +205,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       exclude,
       file: dockerFile,
       cacheDisabled = false,
+      buildLogGroup: buildLogGroupProp,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -333,6 +344,13 @@ export class TokenInjectableDockerBuilder extends Construct {
         ECR_REPO_URI: { value: this.ecrRepository.repositoryUri },
       },
       buildSpec: BuildSpec.fromObject(buildSpecObj),
+      ...(buildLogGroupProp && {
+        logging: {
+          cloudWatch: {
+            logGroup: buildLogGroupProp,
+          },
+        },
+      }),
       vpc,
       securityGroups,
       subnetSelection,
