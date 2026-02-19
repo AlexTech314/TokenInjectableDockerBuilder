@@ -40,6 +40,7 @@ const project = new awscdk.AwsCdkConstructLibrary({
     'infrastructure-as-code',
     'awscdk',
   ],
+  devDeps: ['jsii-docgen@^10.11.0'],
   license: 'MIT',
   publishToPypi: {
     distName: 'token-injectable-docker-builder',
