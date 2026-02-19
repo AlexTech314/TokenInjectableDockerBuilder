@@ -155,6 +155,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | --- | --- | --- |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.path">path</a></code> | <code>string</code> | The path to the directory containing the Dockerfile or source code. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.buildArgs">buildArgs</a></code> | <code>{[ key: string ]: string}</code> | Build arguments to pass to the Docker build process. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.cacheDisabled">cacheDisabled</a></code> | <code>boolean</code> | When `true`, disables Docker layer caching. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval">completenessQueryInterval</a></code> | <code>aws-cdk-lib.Duration</code> | The query interval for checking if the CodeBuild project has completed. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.dockerLoginSecretArn">dockerLoginSecretArn</a></code> | <code>string</code> | The ARN of the AWS Secrets Manager secret containing Docker login credentials. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.exclude">exclude</a></code> | <code>string[]</code> | A list of file paths in the Docker directory to exclude from build. |
@@ -203,6 +204,22 @@ These are transformed into `--build-arg KEY=VALUE` flags.
 }
 ```
 
+
+##### `cacheDisabled`<sup>Optional</sup> <a name="cacheDisabled" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.cacheDisabled"></a>
+
+```typescript
+public readonly cacheDisabled: boolean;
+```
+
+- *Type:* boolean
+- *Default:* false
+
+When `true`, disables Docker layer caching.
+
+Every build runs from scratch.
+Use for debugging, corrupted cache, or major dependency changes.
+
+---
 
 ##### `completenessQueryInterval`<sup>Optional</sup> <a name="completenessQueryInterval" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval"></a>
 

@@ -274,9 +274,9 @@ export class TokenInjectableDockerBuilder extends Construct {
     const buildxInstallCommands = cacheDisabled
       ? []
       : [
-          'echo "Setting up Docker buildx for ECR layer cache..."',
-          'docker buildx create --driver docker-container --name ecr-cache-builder --use 2>/dev/null || docker buildx use ecr-cache-builder',
-        ];
+        'echo "Setting up Docker buildx for ECR layer cache..."',
+        'docker buildx create --driver docker-container --name ecr-cache-builder --use 2>/dev/null || docker buildx use ecr-cache-builder',
+      ];
 
     const buildCommand = cacheDisabled
       ? `docker build ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
