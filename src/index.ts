@@ -129,6 +129,15 @@ export interface TokenInjectableDockerBuilderProps {
    * @default - No file path exclusions
    */
   readonly exclude?: string[];
+
+  /**
+   * The name of the Dockerfile to use for the build.
+   * Passed as `--file` to `docker build`.
+   *
+   * @example 'Dockerfile.production'
+   * @default 'Dockerfile'
+   */
+  readonly file?: string;
 }
 
 /**
@@ -176,6 +185,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       kmsEncryption = false,
       completenessQueryInterval,
       exclude,
+      file: dockerFile,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -216,10 +226,11 @@ export class TokenInjectableDockerBuilder extends Construct {
       }
     }
 
-    // Ensure Dockerfile is never excluded
+    // Ensure the target Dockerfile is never excluded
+    const dockerFileName = dockerFile ?? 'Dockerfile';
     if (effectiveExclude) {
       effectiveExclude = effectiveExclude.filter(
-        (pattern: string) => pattern.toLowerCase() !== 'dockerfile',
+        (pattern: string) => pattern.toLowerCase() !== dockerFileName.toLowerCase(),
       );
     }
 
@@ -236,6 +247,8 @@ export class TokenInjectableDockerBuilder extends Construct {
         .map(([k, v]) => `--build-arg ${k}=${v}`)
         .join(' ')
       : '';
+
+    const dockerFileFlag = dockerFile ? `-f $CODEBUILD_SRC_DIR/${dockerFile}` : '';
 
     // Optional DockerHub login, if a secret ARN is provided
     const dockerLoginCommands = dockerLoginSecretArn
@@ -271,7 +284,7 @@ export class TokenInjectableDockerBuilder extends Construct {
         build: {
           commands: [
             `echo "Building Docker image with tag ${imageTag}..."`,
-            `docker build ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`,
+            `docker build ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`,
           ],
         },
         post_build: {
@@ -330,7 +343,7 @@ export class TokenInjectableDockerBuilder extends Construct {
 
     // Define Lambda functions for custom resource event and completion handling
     const onEventHandlerFunction = new Function(this, 'OnEventHandlerFunction', {
-      runtime: Runtime.NODEJS_18_X,
+      runtime: Runtime.NODEJS_22_X,
       code: Code.fromAsset(path.resolve(__dirname, '../onEvent')),
       handler: 'onEvent.handler',
       timeout: Duration.minutes(15),
@@ -343,7 +356,7 @@ export class TokenInjectableDockerBuilder extends Construct {
     );
 
     const isCompleteHandlerFunction = new Function(this, 'IsCompleteHandlerFunction', {
-      runtime: Runtime.NODEJS_18_X,
+      runtime: Runtime.NODEJS_22_X,
       code: Code.fromAsset(path.resolve(__dirname, '../isComplete')),
       environment: {
         IMAGE_TAG: imageTag,

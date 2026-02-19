@@ -22,6 +22,7 @@ For example, a Next.js frontend Docker image may require an API Gateway URL as a
 - **ECR Repository Management**: Creates an ECR repository with lifecycle rules and encryption.
 - **Integration with ECS and Lambda**: Provides outputs for use in AWS ECS and AWS Lambda.
 - **Custom Build Query Interval**: Configure how frequently the custom resource polls for build completion using the `completenessQueryInterval` property (defaults to 30 seconds).
+- **Custom Dockerfile**: Specify a custom Dockerfile name via the `file` property (e.g. `Dockerfile.production`), allowing multiple Docker images from the same source directory.
 
 ---
 
@@ -70,6 +71,7 @@ pip install token-injectable-docker-builder
 | `kmsEncryption`            | `boolean`                   | No       | Whether to enable KMS encryption for the ECR repository. If `true`, a KMS key will be created for encrypting ECR images; otherwise, AES-256 encryption is used. Defaults to `false`.                                                                                                          |
 | `completenessQueryInterval`| `Duration`                  | No       | The query interval for checking if the CodeBuild project has completed. This determines how frequently the custom resource polls for build completion. Defaults to `Duration.seconds(30)`.                                                                                                   |
 | `exclude`                  | `string[]`                  | No       | A list of file paths in the Docker directory to exclude from the S3 asset bundle. If a `.dockerignore` file is present in the source directory, its contents will be used if this prop is not set. Defaults to an empty list or `.dockerignore` contents.                                    |
+| `file`                     | `string`                    | No       | The name of the Dockerfile to use for the build. Passed as `--file` to `docker build`. Useful when a project has multiple Dockerfiles (e.g. `Dockerfile.production`, `Dockerfile.admin`). Defaults to `Dockerfile`.                                                                        |
 
 ---
 
@@ -374,6 +376,7 @@ The construct automatically grants permissions for:
 - **Docker Login**: If you need to log in to a private Docker registry before building the image, provide the ARN of a secret in AWS Secrets Manager containing the Docker credentials.
 - **ECR Repository**: Automatically creates an ECR repository with lifecycle rules to manage image retention, encryption with a KMS key, and image scanning on push.
 - **Build Query Interval**: The polling frequency for checking build completion can be customized via the `completenessQueryInterval` property.
+- **Custom Dockerfile**: Use the `file` property to specify a Dockerfile other than the default `Dockerfile`. This is passed as the `--file` flag to `docker build`.
 
 ---
 

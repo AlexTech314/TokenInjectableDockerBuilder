@@ -158,6 +158,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval">completenessQueryInterval</a></code> | <code>aws-cdk-lib.Duration</code> | The query interval for checking if the CodeBuild project has completed. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.dockerLoginSecretArn">dockerLoginSecretArn</a></code> | <code>string</code> | The ARN of the AWS Secrets Manager secret containing Docker login credentials. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.exclude">exclude</a></code> | <code>string[]</code> | A list of file paths in the Docker directory to exclude from build. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file">file</a></code> | <code>string</code> | The name of the Dockerfile to use for the build. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands">installCommands</a></code> | <code>string[]</code> | Custom commands to run during the install phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.kmsEncryption">kmsEncryption</a></code> | <code>boolean</code> | Whether to enable KMS encryption for the ECR repository. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands">preBuildCommands</a></code> | <code>string[]</code> | Custom commands to run during the pre_build phase of CodeBuild. |
@@ -262,6 +263,28 @@ A list of file paths in the Docker directory to exclude from build.
 Will use paths in .dockerignore file if present.
 
 ---
+
+##### `file`<sup>Optional</sup> <a name="file" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file"></a>
+
+```typescript
+public readonly file: string;
+```
+
+- *Type:* string
+- *Default:* 'Dockerfile'
+
+The name of the Dockerfile to use for the build.
+
+Passed as `--file` to `docker build`.
+
+---
+
+*Example*
+
+```typescript
+'Dockerfile.production'
+```
+
 
 ##### `installCommands`<sup>Optional</sup> <a name="installCommands" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands"></a>
 
