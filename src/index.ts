@@ -138,6 +138,14 @@ export interface TokenInjectableDockerBuilderProps {
    * @default 'Dockerfile'
    */
   readonly file?: string;
+
+  /**
+   * When `true`, disables Docker layer caching. Every build runs from scratch.
+   * Use for debugging, corrupted cache, or major dependency changes.
+   *
+   * @default false
+   */
+  readonly cacheDisabled?: boolean;
 }
 
 /**
@@ -186,6 +194,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       completenessQueryInterval,
       exclude,
       file: dockerFile,
+      cacheDisabled = false,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -262,6 +271,17 @@ export class TokenInjectableDockerBuilder extends Construct {
       ]
       : ['echo "No Docker credentials. Skipping Docker Hub login."'];
 
+    const buildxInstallCommands = cacheDisabled
+      ? []
+      : [
+          'echo "Setting up Docker buildx for ECR layer cache..."',
+          'docker buildx create --driver docker-container --name ecr-cache-builder --use 2>/dev/null || docker buildx use ecr-cache-builder',
+        ];
+
+    const buildCommand = cacheDisabled
+      ? `docker build ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
+      : `docker buildx build --push --cache-from type=registry,ref=$ECR_REPO_URI:cache --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
+
     const buildSpecObj = {
       version: '0.2',
       phases: {
@@ -269,6 +289,7 @@ export class TokenInjectableDockerBuilder extends Construct {
           commands: [
             'echo "Beginning install phase..."',
             ...(installCommands ?? []),
+            ...buildxInstallCommands,
           ],
         },
         pre_build: {
@@ -284,15 +305,17 @@ export class TokenInjectableDockerBuilder extends Construct {
         build: {
           commands: [
             `echo "Building Docker image with tag ${imageTag}..."`,
-            `docker build ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`,
+            buildCommand,
           ],
         },
-        post_build: {
-          commands: [
-            `echo "Pushing Docker image with tag ${imageTag}..."`,
-            `docker push $ECR_REPO_URI:${imageTag}`,
-          ],
-        },
+        ...(cacheDisabled && {
+          post_build: {
+            commands: [
+              `echo "Pushing Docker image with tag ${imageTag}..."`,
+              `docker push $ECR_REPO_URI:${imageTag}`,
+            ],
+          },
+        }),
       },
     };
 
