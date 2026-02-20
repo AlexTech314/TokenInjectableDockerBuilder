@@ -296,6 +296,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.cacheDisabled">cacheDisabled</a></code> | <code>boolean</code> | When `true`, disables Docker layer caching. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval">completenessQueryInterval</a></code> | <code>aws-cdk-lib.Duration</code> | The query interval for checking if the CodeBuild project has completed. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.dockerLoginSecretArn">dockerLoginSecretArn</a></code> | <code>string</code> | The ARN of the AWS Secrets Manager secret containing Docker login credentials. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.ecrPullThroughCachePrefixes">ecrPullThroughCachePrefixes</a></code> | <code>string[]</code> | ECR pull-through cache repository prefixes to grant pull access to. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.exclude">exclude</a></code> | <code>string[]</code> | A list of file paths in the Docker directory to exclude from build. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file">file</a></code> | <code>string</code> | The name of the Dockerfile to use for the build. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands">installCommands</a></code> | <code>string[]</code> | Custom commands to run during the install phase of CodeBuild. |
@@ -419,6 +420,31 @@ If not provided (or not needed), the construct will skip Docker Hub login.
 
 ```typescript
 'arn:aws:secretsmanager:us-east-1:123456789012:secret:DockerLoginSecret'
+```
+
+
+##### `ecrPullThroughCachePrefixes`<sup>Optional</sup> <a name="ecrPullThroughCachePrefixes" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.ecrPullThroughCachePrefixes"></a>
+
+```typescript
+public readonly ecrPullThroughCachePrefixes: string[];
+```
+
+- *Type:* string[]
+- *Default:* No pull-through cache access
+
+ECR pull-through cache repository prefixes to grant pull access to.
+
+Use when your Dockerfile references base images from ECR pull-through
+cache (e.g. docker-hub/library/node:20-slim, ghcr/org/image:tag).
+The CodeBuild role will be granted ecr:BatchGetImage, ecr:GetDownloadUrlForLayer,
+and ecr:BatchCheckLayerAvailability on repositories matching each prefix.
+
+---
+
+*Example*
+
+```typescript
+['docker-hub', 'ghcr']
 ```
 
 

@@ -276,6 +276,18 @@ export interface TokenInjectableDockerBuilderProps {
    * @default - A new provider is created per builder instance
    */
   readonly provider?: TokenInjectableDockerBuilderProvider;
+
+  /**
+   * ECR pull-through cache repository prefixes to grant pull access to.
+   * Use when your Dockerfile references base images from ECR pull-through
+   * cache (e.g. docker-hub/library/node:20-slim, ghcr/org/image:tag).
+   * The CodeBuild role will be granted ecr:BatchGetImage, ecr:GetDownloadUrlForLayer,
+   * and ecr:BatchCheckLayerAvailability on repositories matching each prefix.
+   *
+   * @example ['docker-hub', 'ghcr']
+   * @default - No pull-through cache access
+   */
+  readonly ecrPullThroughCachePrefixes?: string[];
 }
 
 /**
@@ -328,6 +340,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       buildLogGroup: buildLogGroupProp,
       platform = 'linux/amd64',
       provider: sharedProvider,
+      ecrPullThroughCachePrefixes,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -494,10 +507,26 @@ export class TokenInjectableDockerBuilder extends Construct {
           'ecr:GetAuthorizationToken',
           'ecr:GetDownloadUrlForLayer',
           'ecr:BatchCheckLayerAvailability',
+          'ecr:BatchGetImage',
         ],
         resources: ['*'],
       }),
     );
+    if (ecrPullThroughCachePrefixes && ecrPullThroughCachePrefixes.length > 0) {
+      const stack = Stack.of(this);
+      codeBuildProject.addToRolePolicy(
+        new PolicyStatement({
+          actions: [
+            'ecr:BatchGetImage',
+            'ecr:GetDownloadUrlForLayer',
+            'ecr:BatchCheckLayerAvailability',
+          ],
+          resources: ecrPullThroughCachePrefixes.map(
+            (prefix) => `arn:aws:ecr:${stack.region}:${stack.account}:repository/${prefix}/*`,
+          ),
+        }),
+      );
+    }
     if (dockerLoginSecretArn) {
       codeBuildProject.addToRolePolicy(
         new PolicyStatement({

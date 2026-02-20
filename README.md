@@ -27,6 +27,7 @@ For example, a Next.js frontend Docker image may require an API Gateway URL as a
 - **ECR Docker Layer Caching**: By default, builds use `docker buildx` with ECR as a remote cache backend, reducing build times by reusing layers across deploys. Set `cacheDisabled: true` to force a clean build from scratch.
 - **Platform Support**: Build images for `linux/amd64` (x86_64) or `linux/arm64` (Graviton) using native CodeBuild instances — no emulation, no QEMU. ARM builds are faster and cheaper.
 - **Persistent Build Logs**: Pass `buildLogGroup` with a log group that has RETAIN removal policy so build logs survive rollbacks and stack deletion for debugging.
+- **ECR Pull-Through Cache**: When your Dockerfile uses base images from ECR pull-through cache (e.g. `docker-hub/library/node:20-slim`, `ghcr/org/image:tag`), pass `ecrPullThroughCachePrefixes` to grant the CodeBuild role pull access to those cache prefixes.
 
 ---
 
@@ -110,6 +111,7 @@ A singleton construct that creates the `onEvent` and `isComplete` Lambda functio
 | `cacheDisabled`           | `boolean`                   | No       | When `true`, disables Docker layer caching. Every build runs from scratch. Use for debugging, corrupted cache, or major dependency changes. Defaults to `false`.                                                                                                                          |
 | `platform`                 | `'linux/amd64' \| 'linux/arm64'` | No  | Target platform for the Docker image. When set to `'linux/arm64'`, uses a native ARM/Graviton CodeBuild instance for fast builds without emulation. Defaults to `'linux/amd64'`.                                                                                                      |
 | `buildLogGroup`            | `ILogGroup`                 | No       | CloudWatch log group for CodeBuild build logs. When provided with RETAIN removal policy, logs survive rollbacks and stack deletion. If not provided, CodeBuild uses default logging (logs are deleted on rollback).                                                                          |
+| `ecrPullThroughCachePrefixes` | `string[]`               | No       | ECR pull-through cache repository prefixes to grant pull access to. Use when your Dockerfile references base images from ECR pull-through cache (e.g. `docker-hub/library/node:20-slim`, `ghcr/org/image:tag`). The CodeBuild role is granted `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer`, and `ecr:BatchCheckLayerAvailability` on repositories matching each prefix. Example: `['docker-hub', 'ghcr']`. Defaults to no pull-through cache access. |
 
 #### Instance Properties
 
@@ -454,6 +456,44 @@ class AdvancedStack(cdk.Stack):
         )
 ```
 
+### ECR Pull-Through Cache Example
+
+When your Dockerfile uses base images from an ECR pull-through cache (e.g. to avoid Docker Hub rate limits), pass `ecrPullThroughCachePrefixes` so the CodeBuild role can pull those images:
+
+```typescript
+import * as cdk from 'aws-cdk-lib';
+import {
+  TokenInjectableDockerBuilder,
+  TokenInjectableDockerBuilderProvider,
+} from 'token-injectable-docker-builder';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+
+export class PullThroughCacheStack extends cdk.Stack {
+  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    const provider = TokenInjectableDockerBuilderProvider.getOrCreate(this);
+    const node20Slim = `${this.account}.dkr.ecr.${this.region}.amazonaws.com/docker-hub/library/node:20-slim`;
+
+    const apiImage = new TokenInjectableDockerBuilder(this, 'ApiImage', {
+      path: './src',
+      file: 'api/Dockerfile',
+      platform: 'linux/arm64',
+      provider,
+      buildArgs: { NODE_20_SLIM: node20Slim },
+      ecrPullThroughCachePrefixes: ['docker-hub', 'ghcr'],
+    });
+
+    new lambda.DockerImageFunction(this, 'ApiLambda', {
+      code: apiImage.dockerImageCode,
+      architecture: lambda.Architecture.ARM_64,
+    });
+  }
+}
+```
+
+---
+
 In this advanced example:
 
 - **VPC Configuration**: The CodeBuild project is configured to run inside a VPC with specified security groups and subnet selection, allowing it to access internal resources such as a private API endpoint.
@@ -495,6 +535,7 @@ The construct automatically grants permissions for:
 
 - **CodeBuild**:
   - Pull and push images to ECR.
+  - Pull from ECR pull-through cache prefixes when `ecrPullThroughCachePrefixes` is provided (e.g. `['docker-hub', 'ghcr']`).
   - Access to AWS Secrets Manager if `dockerLoginSecretArn` is provided.
   - Access to the KMS key for encryption.
 - **Lambda Functions** (per-instance or shared provider):
@@ -520,6 +561,7 @@ When using the shared provider, `registerProject()` incrementally adds IAM permi
 - **Docker Layer Caching**: By default, builds use ECR as a remote cache backend (via `docker buildx`), which can reduce build times by up to 25%. Set `cacheDisabled: true` when you need a clean build—for example, when debugging, the cache is corrupted, or after major dependency upgrades.
 - **Platform / Architecture**: Set `platform: 'linux/arm64'` to build ARM64/Graviton images using a native ARM CodeBuild instance. Defaults to `'linux/amd64'` (x86_64). Native builds are faster and cheaper than cross-compilation with QEMU.
 - **Build Log Retention**: Pass `buildLogGroup` with a log group that has RETAIN removal policy to ensure build logs survive CloudFormation rollbacks and stack deletion.
+- **ECR Pull-Through Cache**: When using ECR pull-through cache for base images (e.g. to avoid Docker Hub rate limits), pass `ecrPullThroughCachePrefixes: ['docker-hub', 'ghcr']` so the CodeBuild role can pull from those cached repositories. Your ECR registry must have a pull-through cache rule and registry policy configured separately.
 - **Backward Compatibility**: The `provider` prop is optional. Omitting it preserves the original behavior where each builder creates its own Lambdas. Existing code works without changes.
 
 ---
