@@ -16,6 +16,7 @@ For example, a Next.js frontend Docker image may require an API Gateway URL as a
 
 - **Build and Push Docker Images**: Automatically builds and pushes Docker images to ECR.
 - **Token Support**: Supports custom build arguments for Docker builds, including CDK tokens resolved at deployment time.
+- **Shared Provider (Singleton)**: When building multiple Docker images in the same stack, use `TokenInjectableDockerBuilderProvider` to share a single pair of Lambda functions across all builders, reducing resource overhead from ~2 Lambdas per image to 2 Lambdas total.
 - **Custom Install and Pre-Build Commands**: Allows specifying custom commands to run during the `install` and `pre_build` phases of the CodeBuild build process.
 - **VPC Configuration**: Supports deploying the CodeBuild project within a VPC, with customizable security groups and subnet selection.
 - **Docker Login**: Supports Docker login using credentials stored in AWS Secrets Manager.
@@ -48,7 +49,37 @@ pip install token-injectable-docker-builder
 
 ---
 
-## Constructor
+## API Reference
+
+### `TokenInjectableDockerBuilderProvider`
+
+A singleton construct that creates the `onEvent` and `isComplete` Lambda functions once per stack. When building multiple Docker images, share a single provider to avoid creating redundant Lambda functions.
+
+#### Static Methods
+
+| Method | Description |
+|---|---|
+| `getOrCreate(scope, props?)` | Returns the existing provider for the stack, or creates one if it doesn't exist. |
+
+#### Properties in `TokenInjectableDockerBuilderProviderProps`
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `queryInterval` | `Duration` | No | How often the provider polls for build completion. Defaults to `Duration.seconds(30)`. |
+
+#### Instance Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `serviceToken` | `string` | The service token used by CustomResource instances. |
+
+#### Instance Methods
+
+| Method | Description |
+|---|---|
+| `registerProject(project, ecrRepo, encryptionKey?)` | Grants the shared Lambdas permission to start builds and access ECR for a specific CodeBuild project. Called automatically when `provider` is passed to `TokenInjectableDockerBuilder`. |
+
+---
 
 ### `TokenInjectableDockerBuilder`
 
@@ -64,6 +95,7 @@ pip install token-injectable-docker-builder
 |----------------------------|-----------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `path`                     | `string`                    | Yes      | The file path to the Dockerfile or source code directory.                                                                                                                                                                                                                                       |
 | `buildArgs`                | `{ [key: string]: string }` | No       | Build arguments to pass to the Docker build process. These are transformed into `--build-arg` flags. To use in Dockerfile, leverage the `ARG` keyword. For more details, please see the [official Docker docs](https://docs.docker.com/build/building/variables/).                             |
+| `provider`                 | `TokenInjectableDockerBuilderProvider` | No | Shared provider for the custom resource Lambdas. Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` to share a single pair of Lambdas across all builders in the same stack. When omitted, each builder creates its own Lambdas (original behavior). |
 | `dockerLoginSecretArn`     | `string`                    | No       | ARN of an AWS Secrets Manager secret for Docker credentials. Skips login if not provided.                                                                                                                                                                                                        |
 | `vpc`                      | `IVpc`                      | No       | The VPC in which the CodeBuild project will be deployed. If provided, the CodeBuild project will be launched within the specified VPC.                                                                                                                                                           |
 | `securityGroups`           | `ISecurityGroup[]`          | No       | The security groups to attach to the CodeBuild project. These should define the network access rules for the CodeBuild project.                                                                                                                                                                  |
@@ -71,15 +103,102 @@ pip install token-injectable-docker-builder
 | `installCommands`          | `string[]`                  | No       | Custom commands to run during the `install` phase of the CodeBuild build process. Will be executed before the Docker image is built. Useful for installing necessary dependencies for running pre-build scripts.                                                                                 |
 | `preBuildCommands`         | `string[]`                  | No       | Custom commands to run during the `pre_build` phase of the CodeBuild build process. Will be executed before the Docker image is built. Useful for running pre-build scripts, such as fetching configs.                                                                                           |
 | `kmsEncryption`            | `boolean`                   | No       | Whether to enable KMS encryption for the ECR repository. If `true`, a KMS key will be created for encrypting ECR images; otherwise, AES-256 encryption is used. Defaults to `false`.                                                                                                          |
-| `completenessQueryInterval`| `Duration`                  | No       | The query interval for checking if the CodeBuild project has completed. This determines how frequently the custom resource polls for build completion. Defaults to `Duration.seconds(30)`.                                                                                                   |
+| `completenessQueryInterval`| `Duration`                  | No       | The query interval for checking if the CodeBuild project has completed. This determines how frequently the custom resource polls for build completion. Defaults to `Duration.seconds(30)`. Ignored when `provider` is set (the provider's `queryInterval` is used instead).                   |
 | `exclude`                  | `string[]`                  | No       | A list of file paths in the Docker directory to exclude from the S3 asset bundle. If a `.dockerignore` file is present in the source directory, its contents will be used if this prop is not set. Defaults to an empty list or `.dockerignore` contents.                                    |
 | `file`                     | `string`                    | No       | The name of the Dockerfile to use for the build. Passed as `--file` to `docker build`. Useful when a project has multiple Dockerfiles (e.g. `Dockerfile.production`, `Dockerfile.admin`). Defaults to `Dockerfile`.                                                                        |
 | `cacheDisabled`           | `boolean`                   | No       | When `true`, disables Docker layer caching. Every build runs from scratch. Use for debugging, corrupted cache, or major dependency changes. Defaults to `false`.                                                                                                                          |
 | `buildLogGroup`            | `ILogGroup`                 | No       | CloudWatch log group for CodeBuild build logs. When provided with RETAIN removal policy, logs survive rollbacks and stack deletion. If not provided, CodeBuild uses default logging (logs are deleted on rollback).                                                                          |
 
+#### Instance Properties
+
+| Property | Type | Description |
+|---|---|---|
+| `containerImage` | `ContainerImage` | An ECS-compatible container image referencing the built Docker image. |
+| `dockerImageCode` | `DockerImageCode` | A Lambda-compatible Docker image code referencing the built Docker image. |
+
 ---
 
 ## Usage Examples
+
+### Shared Provider (Recommended for Multiple Images)
+
+When building multiple Docker images in the same stack, use a shared provider to avoid creating redundant Lambda functions. Without a shared provider, each builder creates 2 Lambdas + 1 Provider framework Lambda. With 10 images, that's 30 Lambdas. A shared provider reduces this to just 3 Lambdas total.
+
+#### TypeScript/NPM Example
+
+```typescript
+import * as cdk from 'aws-cdk-lib';
+import {
+  TokenInjectableDockerBuilder,
+  TokenInjectableDockerBuilderProvider,
+} from 'token-injectable-docker-builder';
+import * as ecs from 'aws-cdk-lib/aws-ecs';
+
+export class MultiImageStack extends cdk.Stack {
+  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+
+    // Create a shared provider once per stack (singleton)
+    const provider = TokenInjectableDockerBuilderProvider.getOrCreate(this);
+
+    // Build multiple Docker images sharing the same provider
+    const apiBuilder = new TokenInjectableDockerBuilder(this, 'ApiImage', {
+      path: './src/api',
+      provider,
+    });
+
+    const workerBuilder = new TokenInjectableDockerBuilder(this, 'WorkerImage', {
+      path: './src/worker',
+      provider,
+    });
+
+    const frontendBuilder = new TokenInjectableDockerBuilder(this, 'FrontendImage', {
+      path: './src/frontend',
+      buildArgs: { API_URL: 'https://api.example.com' },
+      provider,
+    });
+
+    // Use in ECS task definitions
+    const taskDef = new ecs.FargateTaskDefinition(this, 'TaskDef');
+    taskDef.addContainer('api', { image: apiBuilder.containerImage });
+    taskDef.addContainer('worker', { image: workerBuilder.containerImage });
+  }
+}
+```
+
+#### Python Example
+
+```python
+from aws_cdk import aws_ecs as ecs, core as cdk
+from token_injectable_docker_builder import (
+    TokenInjectableDockerBuilder,
+    TokenInjectableDockerBuilderProvider,
+)
+
+class MultiImageStack(cdk.Stack):
+    def __init__(self, scope: cdk.App, id: str, **kwargs):
+        super().__init__(scope, id, **kwargs)
+
+        # Create a shared provider once per stack (singleton)
+        provider = TokenInjectableDockerBuilderProvider.get_or_create(self)
+
+        # Build multiple Docker images sharing the same provider
+        api_builder = TokenInjectableDockerBuilder(self, "ApiImage",
+            path="./src/api",
+            provider=provider,
+        )
+
+        worker_builder = TokenInjectableDockerBuilder(self, "WorkerImage",
+            path="./src/worker",
+            provider=provider,
+        )
+
+        frontend_builder = TokenInjectableDockerBuilder(self, "FrontendImage",
+            path="./src/frontend",
+            build_args={"API_URL": "https://api.example.com"},
+            provider=provider,
+        )
+```
 
 ### Simple Usage Example
 
@@ -347,12 +466,23 @@ In this advanced example:
    - Uses the packaged asset and `buildArgs` to build the Docker image.
    - Executes any custom `installCommands` and `preBuildCommands` during the build process.
    - Pushes the image to an ECR repository.
+   - By default, uses `docker buildx` with ECR registry cache to speed up builds.
 3. **Custom Resource**:
    - Triggers the build process using a Lambda function (`onEvent`).
    - Monitors the build status using another Lambda function (`isComplete`) which polls at the interval specified by `completenessQueryInterval` (defaulting to 30 seconds if not provided).
+   - When using a shared `provider`, the same pair of Lambdas handles all builders in the stack.
 4. **Outputs**:
    - `.containerImage`: Returns the Docker image for ECS.
    - `.dockerImageCode`: Returns the Docker image code for Lambda.
+
+### Resource Comparison
+
+| Scenario | Lambdas Created | CodeBuild Projects | ECR Repos |
+|---|---|---|---|
+| 5 images, no shared provider | 15 (3 per image) | 5 | 5 |
+| 5 images, shared provider | 3 (shared) | 5 | 5 |
+| 10 images, no shared provider | 30 (3 per image) | 10 | 10 |
+| 10 images, shared provider | 3 (shared) | 10 | 10 |
 
 ---
 
@@ -364,33 +494,37 @@ The construct automatically grants permissions for:
   - Pull and push images to ECR.
   - Access to AWS Secrets Manager if `dockerLoginSecretArn` is provided.
   - Access to the KMS key for encryption.
-- **Lambda Functions**:
+- **Lambda Functions** (per-instance or shared provider):
   - Start and monitor CodeBuild builds.
   - Access CloudWatch Logs.
   - Access to the KMS key for encryption.
   - Pull and push images to ECR.
 
+When using the shared provider, `registerProject()` incrementally adds IAM permissions for each CodeBuild project and ECR repository.
+
 ---
 
 ## Notes
 
+- **Shared Provider**: Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` when building multiple images in the same stack. This is the recommended approach for stacks with 2+ Docker images.
 - **Build Arguments**: Pass custom arguments via `buildArgs` as `--build-arg` flags. CDK tokens can be used to inject dynamic values resolved at deployment time.
 - **Custom Commands**: Use `installCommands` and `preBuildCommands` to run custom shell commands during the build process. This can be useful for installing dependencies or fetching configuration files.
 - **VPC Configuration**: If your build process requires access to resources within a VPC, you can specify the VPC, security groups, and subnet selection.
 - **Docker Login**: If you need to log in to a private Docker registry before building the image, provide the ARN of a secret in AWS Secrets Manager containing the Docker credentials.
 - **ECR Repository**: Automatically creates an ECR repository with lifecycle rules to manage image retention, encryption with a KMS key, and image scanning on push.
-- **Build Query Interval**: The polling frequency for checking build completion can be customized via the `completenessQueryInterval` property.
+- **Build Query Interval**: The polling frequency for checking build completion can be customized via the `completenessQueryInterval` property (per-instance) or `queryInterval` (shared provider).
 - **Custom Dockerfile**: Use the `file` property to specify a Dockerfile other than the default `Dockerfile`. This is passed as the `--file` flag to `docker build`.
 - **Docker Layer Caching**: By default, builds use ECR as a remote cache backend (via `docker buildx`), which can reduce build times by up to 25%. Set `cacheDisabled: true` when you need a clean build—for example, when debugging, the cache is corrupted, or after major dependency upgrades.
 - **Build Log Retention**: Pass `buildLogGroup` with a log group that has RETAIN removal policy to ensure build logs survive CloudFormation rollbacks and stack deletion.
+- **Backward Compatibility**: The `provider` prop is optional. Omitting it preserves the original behavior where each builder creates its own Lambdas. Existing code works without changes.
 
 ---
 
 ## Troubleshooting
 
 1. **Build Errors**: Check the CodeBuild logs in CloudWatch Logs for detailed error messages. If you pass `buildLogGroup` with RETAIN removal policy, logs persist even after rollbacks. Otherwise, logs are deleted when the CodeBuild project is removed during rollback.
-2. **Lambda Errors**: Check the `onEvent` and `isComplete` Lambda function logs in CloudWatch Logs.
-3. **Permissions**: Ensure IAM roles have the required permissions for CodeBuild, ECR, Secrets Manager, and KMS if applicable.
+2. **Lambda Errors**: Check the `onEvent` and `isComplete` Lambda function logs in CloudWatch Logs. With a shared provider, both builders' events flow through the same Lambdas—filter by `ProjectName` in the logs.
+3. **Permissions**: Ensure IAM roles have the required permissions for CodeBuild, ECR, Secrets Manager, and KMS if applicable. When using a shared provider, verify that `registerProject()` was called for each builder (this happens automatically when passing the `provider` prop).
 4. **Network Access**: If the build requires network access (e.g., to download dependencies or access internal APIs), ensure that the VPC configuration allows necessary network connectivity, and adjust security group rules accordingly.
 
 ---

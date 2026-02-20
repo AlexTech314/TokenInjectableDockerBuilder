@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { CustomResource, Duration } from 'aws-cdk-lib';
+import { CustomResource, Duration, Stack } from 'aws-cdk-lib';
 import { Project, Source, LinuxBuildImage, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { IVpc, ISecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 import { Repository, RepositoryEncryption, TagStatus } from 'aws-cdk-lib/aws-ecr';
@@ -14,6 +14,105 @@ import { ILogGroup } from 'aws-cdk-lib/aws-logs';
 import { Asset } from 'aws-cdk-lib/aws-s3-assets';
 import { Provider } from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
+
+const PROVIDER_SINGLETON_ID = 'TokenInjectableDockerBuilderProvider';
+
+/**
+ * Options for creating a `TokenInjectableDockerBuilderProvider`.
+ */
+export interface TokenInjectableDockerBuilderProviderProps {
+  /**
+   * How often the provider polls for build completion.
+   *
+   * @default Duration.seconds(30)
+   */
+  readonly queryInterval?: Duration;
+}
+
+/**
+ * Shared provider for `TokenInjectableDockerBuilder` instances.
+ *
+ * Creates the onEvent and isComplete Lambda functions once per stack.
+ * Each builder instance registers its CodeBuild project ARN so the
+ * shared Lambdas have permission to start builds and read logs.
+ */
+export class TokenInjectableDockerBuilderProvider extends Construct {
+  /**
+   * Get or create the singleton provider for this stack.
+   * All `TokenInjectableDockerBuilder` instances in the same stack
+   * share a single pair of Lambda functions.
+   */
+  public static getOrCreate(scope: Construct, props?: TokenInjectableDockerBuilderProviderProps): TokenInjectableDockerBuilderProvider {
+    const stack = Stack.of(scope);
+    const existing = stack.node.tryFindChild(PROVIDER_SINGLETON_ID) as TokenInjectableDockerBuilderProvider | undefined;
+    if (existing) return existing;
+    return new TokenInjectableDockerBuilderProvider(stack, PROVIDER_SINGLETON_ID, props);
+  }
+
+  /** The service token used by CustomResource instances. */
+  public readonly serviceToken: string;
+
+  private readonly onEventHandlerFunction: Function;
+  private readonly isCompleteHandlerFunction: Function;
+
+  private constructor(scope: Construct, id: string, props?: TokenInjectableDockerBuilderProviderProps) {
+    super(scope, id);
+
+    this.onEventHandlerFunction = new Function(this, 'OnEventHandler', {
+      runtime: Runtime.NODEJS_22_X,
+      code: Code.fromAsset(path.resolve(__dirname, '../onEvent')),
+      handler: 'onEvent.handler',
+      timeout: Duration.minutes(15),
+    });
+
+    this.isCompleteHandlerFunction = new Function(this, 'IsCompleteHandler', {
+      runtime: Runtime.NODEJS_22_X,
+      code: Code.fromAsset(path.resolve(__dirname, '../isComplete')),
+      handler: 'isComplete.handler',
+      timeout: Duration.minutes(15),
+    });
+    this.isCompleteHandlerFunction.addToRolePolicy(
+      new PolicyStatement({
+        actions: [
+          'codebuild:BatchGetBuilds',
+          'codebuild:ListBuildsForProject',
+          'logs:GetLogEvents',
+          'logs:DescribeLogStreams',
+          'logs:DescribeLogGroups',
+        ],
+        resources: ['*'],
+      }),
+    );
+
+    const provider = new Provider(this, 'Provider', {
+      onEventHandler: this.onEventHandlerFunction,
+      isCompleteHandler: this.isCompleteHandlerFunction,
+      queryInterval: props?.queryInterval ?? Duration.seconds(30),
+    });
+
+    this.serviceToken = provider.serviceToken;
+  }
+
+  /**
+   * Grant the shared Lambdas permission to start builds for a specific
+   * CodeBuild project and pull/push to its ECR repository.
+   */
+  public registerProject(project: Project, ecrRepo: Repository, encryptionKey?: Key): void {
+    this.onEventHandlerFunction.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['codebuild:StartBuild'],
+        resources: [project.projectArn],
+      }),
+    );
+    ecrRepo.grantPullPush(this.onEventHandlerFunction);
+    ecrRepo.grantPullPush(this.isCompleteHandlerFunction);
+
+    if (encryptionKey) {
+      encryptionKey.grantEncryptDecrypt(this.onEventHandlerFunction);
+      encryptionKey.grantEncryptDecrypt(this.isCompleteHandlerFunction);
+    }
+  }
+}
 
 /**
  * Properties for the `TokenInjectableDockerBuilder` construct.
@@ -156,6 +255,17 @@ export interface TokenInjectableDockerBuilderProps {
    * @default - CodeBuild default logging (logs are deleted on rollback)
    */
   readonly buildLogGroup?: ILogGroup;
+
+  /**
+   * Shared provider for the custom resource Lambdas.
+   * Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` to create
+   * a singleton that is shared across all builders in the same stack.
+   *
+   * When omitted, each builder creates its own Lambdas (original behavior).
+   *
+   * @default - A new provider is created per builder instance
+   */
+  readonly provider?: TokenInjectableDockerBuilderProvider;
 }
 
 /**
@@ -206,6 +316,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       file: dockerFile,
       cacheDisabled = false,
       buildLogGroup: buildLogGroupProp,
+      provider: sharedProvider,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -260,7 +371,6 @@ export class TokenInjectableDockerBuilder extends Construct {
     const sourceAsset = new Asset(this, 'SourceAsset', {
       path: sourcePath,
       exclude: effectiveExclude,
-
     });
 
     // Convert buildArgs to a CLI-friendly string
@@ -384,60 +494,65 @@ export class TokenInjectableDockerBuilder extends Construct {
       encryptionKey.grantEncryptDecrypt(codeBuildProject.role!);
     }
 
-    // Define Lambda functions for custom resource event and completion handling
-    const onEventHandlerFunction = new Function(this, 'OnEventHandlerFunction', {
-      runtime: Runtime.NODEJS_22_X,
-      code: Code.fromAsset(path.resolve(__dirname, '../onEvent')),
-      handler: 'onEvent.handler',
-      timeout: Duration.minutes(15),
-    });
-    onEventHandlerFunction.addToRolePolicy(
-      new PolicyStatement({
-        actions: ['codebuild:StartBuild'],
-        resources: [codeBuildProject.projectArn],
-      }),
-    );
+    // Resolve the service token: shared provider or per-instance Lambdas
+    let serviceToken: string;
+    if (sharedProvider) {
+      sharedProvider.registerProject(codeBuildProject, this.ecrRepository, encryptionKey);
+      serviceToken = sharedProvider.serviceToken;
+    } else {
+      const onEventHandlerFunction = new Function(this, 'OnEventHandlerFunction', {
+        runtime: Runtime.NODEJS_22_X,
+        code: Code.fromAsset(path.resolve(__dirname, '../onEvent')),
+        handler: 'onEvent.handler',
+        timeout: Duration.minutes(15),
+      });
+      onEventHandlerFunction.addToRolePolicy(
+        new PolicyStatement({
+          actions: ['codebuild:StartBuild'],
+          resources: [codeBuildProject.projectArn],
+        }),
+      );
 
-    const isCompleteHandlerFunction = new Function(this, 'IsCompleteHandlerFunction', {
-      runtime: Runtime.NODEJS_22_X,
-      code: Code.fromAsset(path.resolve(__dirname, '../isComplete')),
-      environment: {
-        IMAGE_TAG: imageTag,
-      },
-      handler: 'isComplete.handler',
-      timeout: Duration.minutes(15),
-    });
-    isCompleteHandlerFunction.addToRolePolicy(
-      new PolicyStatement({
-        actions: [
-          'codebuild:BatchGetBuilds',
-          'codebuild:ListBuildsForProject',
-          'logs:GetLogEvents',
-          'logs:DescribeLogStreams',
-          'logs:DescribeLogGroups',
-        ],
-        resources: ['*'],
-      }),
-    );
+      const isCompleteHandlerFunction = new Function(this, 'IsCompleteHandlerFunction', {
+        runtime: Runtime.NODEJS_22_X,
+        code: Code.fromAsset(path.resolve(__dirname, '../isComplete')),
+        environment: {
+          IMAGE_TAG: imageTag,
+        },
+        handler: 'isComplete.handler',
+        timeout: Duration.minutes(15),
+      });
+      isCompleteHandlerFunction.addToRolePolicy(
+        new PolicyStatement({
+          actions: [
+            'codebuild:BatchGetBuilds',
+            'codebuild:ListBuildsForProject',
+            'logs:GetLogEvents',
+            'logs:DescribeLogStreams',
+            'logs:DescribeLogGroups',
+          ],
+          resources: ['*'],
+        }),
+      );
 
-    // Conditionally allow encryption if a key is used
-    if (encryptionKey) {
-      encryptionKey.grantEncryptDecrypt(onEventHandlerFunction);
-      encryptionKey.grantEncryptDecrypt(isCompleteHandlerFunction);
+      if (encryptionKey) {
+        encryptionKey.grantEncryptDecrypt(onEventHandlerFunction);
+        encryptionKey.grantEncryptDecrypt(isCompleteHandlerFunction);
+      }
+      this.ecrRepository.grantPullPush(onEventHandlerFunction);
+      this.ecrRepository.grantPullPush(isCompleteHandlerFunction);
+
+      const provider = new Provider(this, 'CustomResourceProvider', {
+        onEventHandler: onEventHandlerFunction,
+        isCompleteHandler: isCompleteHandlerFunction,
+        queryInterval: completenessQueryInterval ?? Duration.seconds(30),
+      });
+      serviceToken = provider.serviceToken;
     }
-    this.ecrRepository.grantPullPush(onEventHandlerFunction);
-    this.ecrRepository.grantPullPush(isCompleteHandlerFunction);
-
-    // Create a custom resource provider that uses the above Lambdas
-    const provider = new Provider(this, 'CustomResourceProvider', {
-      onEventHandler: onEventHandlerFunction,
-      isCompleteHandler: isCompleteHandlerFunction,
-      queryInterval: completenessQueryInterval ?? Duration.seconds(30),
-    });
 
     // Custom Resource that triggers the CodeBuild and waits for completion
     const buildTriggerResource = new CustomResource(this, 'BuildTriggerResource', {
-      serviceToken: provider.serviceToken,
+      serviceToken,
       properties: {
         ProjectName: codeBuildProject.projectName,
         ImageTag: imageTag,

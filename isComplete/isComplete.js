@@ -69,12 +69,13 @@ exports.handler = async (event) => {
             return { IsComplete: false };
         }
 
-        // If build succeeded, retrieve the final artifact with the digest
+        // If build succeeded, return the image tag from the custom resource properties
         if (buildStatus === 'SUCCEEDED') {
+            const imageTag = event.ResourceProperties?.ImageTag || process.env.IMAGE_TAG;
             return {
                 IsComplete: true,
                 Data: {
-                    ImageTag: process.env.IMAGE_TAG,
+                    ImageTag: imageTag,
                 },
             };
         }

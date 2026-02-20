@@ -135,6 +135,143 @@ A Lambda-compatible DockerImageCode referencing the tag of the built Docker imag
 ---
 
 
+### TokenInjectableDockerBuilderProvider <a name="TokenInjectableDockerBuilderProvider" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider"></a>
+
+Shared provider for `TokenInjectableDockerBuilder` instances.
+
+Creates the onEvent and isComplete Lambda functions once per stack.
+Each builder instance registers its CodeBuild project ARN so the
+shared Lambdas have permission to start builds and read logs.
+
+#### Methods <a name="Methods" id="Methods"></a>
+
+| **Name** | **Description** |
+| --- | --- |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.toString">toString</a></code> | Returns a string representation of this construct. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject">registerProject</a></code> | Grant the shared Lambdas permission to start builds for a specific CodeBuild project and pull/push to its ECR repository. |
+
+---
+
+##### `toString` <a name="toString" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.toString"></a>
+
+```typescript
+public toString(): string
+```
+
+Returns a string representation of this construct.
+
+##### `registerProject` <a name="registerProject" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject"></a>
+
+```typescript
+public registerProject(project: Project, ecrRepo: Repository, encryptionKey?: Key): void
+```
+
+Grant the shared Lambdas permission to start builds for a specific CodeBuild project and pull/push to its ECR repository.
+
+###### `project`<sup>Required</sup> <a name="project" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject.parameter.project"></a>
+
+- *Type:* aws-cdk-lib.aws_codebuild.Project
+
+---
+
+###### `ecrRepo`<sup>Required</sup> <a name="ecrRepo" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject.parameter.ecrRepo"></a>
+
+- *Type:* aws-cdk-lib.aws_ecr.Repository
+
+---
+
+###### `encryptionKey`<sup>Optional</sup> <a name="encryptionKey" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject.parameter.encryptionKey"></a>
+
+- *Type:* aws-cdk-lib.aws_kms.Key
+
+---
+
+#### Static Functions <a name="Static Functions" id="Static Functions"></a>
+
+| **Name** | **Description** |
+| --- | --- |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.isConstruct">isConstruct</a></code> | Checks if `x` is a construct. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.getOrCreate">getOrCreate</a></code> | Get or create the singleton provider for this stack. |
+
+---
+
+##### ~~`isConstruct`~~ <a name="isConstruct" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.isConstruct"></a>
+
+```typescript
+import { TokenInjectableDockerBuilderProvider } from 'token-injectable-docker-builder'
+
+TokenInjectableDockerBuilderProvider.isConstruct(x: any)
+```
+
+Checks if `x` is a construct.
+
+###### `x`<sup>Required</sup> <a name="x" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.isConstruct.parameter.x"></a>
+
+- *Type:* any
+
+Any object.
+
+---
+
+##### `getOrCreate` <a name="getOrCreate" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.getOrCreate"></a>
+
+```typescript
+import { TokenInjectableDockerBuilderProvider } from 'token-injectable-docker-builder'
+
+TokenInjectableDockerBuilderProvider.getOrCreate(scope: Construct, props?: TokenInjectableDockerBuilderProviderProps)
+```
+
+Get or create the singleton provider for this stack.
+
+All `TokenInjectableDockerBuilder` instances in the same stack
+share a single pair of Lambda functions.
+
+###### `scope`<sup>Required</sup> <a name="scope" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.getOrCreate.parameter.scope"></a>
+
+- *Type:* constructs.Construct
+
+---
+
+###### `props`<sup>Optional</sup> <a name="props" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.getOrCreate.parameter.props"></a>
+
+- *Type:* <a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProviderProps">TokenInjectableDockerBuilderProviderProps</a>
+
+---
+
+#### Properties <a name="Properties" id="Properties"></a>
+
+| **Name** | **Type** | **Description** |
+| --- | --- | --- |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.property.node">node</a></code> | <code>constructs.Node</code> | The tree node. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.property.serviceToken">serviceToken</a></code> | <code>string</code> | The service token used by CustomResource instances. |
+
+---
+
+##### `node`<sup>Required</sup> <a name="node" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.property.node"></a>
+
+```typescript
+public readonly node: Node;
+```
+
+- *Type:* constructs.Node
+
+The tree node.
+
+---
+
+##### `serviceToken`<sup>Required</sup> <a name="serviceToken" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.property.serviceToken"></a>
+
+```typescript
+public readonly serviceToken: string;
+```
+
+- *Type:* string
+
+The service token used by CustomResource instances.
+
+---
+
+
 ## Structs <a name="Structs" id="Structs"></a>
 
 ### TokenInjectableDockerBuilderProps <a name="TokenInjectableDockerBuilderProps" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps"></a>
@@ -164,6 +301,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands">installCommands</a></code> | <code>string[]</code> | Custom commands to run during the install phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.kmsEncryption">kmsEncryption</a></code> | <code>boolean</code> | Whether to enable KMS encryption for the ECR repository. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands">preBuildCommands</a></code> | <code>string[]</code> | Custom commands to run during the pre_build phase of CodeBuild. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider">provider</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a></code> | Shared provider for the custom resource Lambdas. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.securityGroups">securityGroups</a></code> | <code>aws-cdk-lib.aws_ec2.ISecurityGroup[]</code> | The security groups to attach to the CodeBuild project. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.subnetSelection">subnetSelection</a></code> | <code>aws-cdk-lib.aws_ec2.SubnetSelection</code> | The subnet selection to specify which subnets to use within the VPC. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.vpc">vpc</a></code> | <code>aws-cdk-lib.aws_ec2.IVpc</code> | The VPC in which the CodeBuild project will be deployed. |
@@ -380,6 +518,24 @@ preBuildCommands: [
 
 ---
 
+##### `provider`<sup>Optional</sup> <a name="provider" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider"></a>
+
+```typescript
+public readonly provider: TokenInjectableDockerBuilderProvider;
+```
+
+- *Type:* <a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a>
+- *Default:* A new provider is created per builder instance
+
+Shared provider for the custom resource Lambdas.
+
+Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` to create
+a singleton that is shared across all builders in the same stack.
+
+When omitted, each builder creates its own Lambdas (original behavior).
+
+---
+
 ##### `securityGroups`<sup>Optional</sup> <a name="securityGroups" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.securityGroups"></a>
 
 ```typescript
@@ -422,6 +578,39 @@ public readonly vpc: IVpc;
 The VPC in which the CodeBuild project will be deployed.
 
 If provided, the CodeBuild project will be launched within the specified VPC.
+
+---
+
+### TokenInjectableDockerBuilderProviderProps <a name="TokenInjectableDockerBuilderProviderProps" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProviderProps"></a>
+
+Options for creating a `TokenInjectableDockerBuilderProvider`.
+
+#### Initializer <a name="Initializer" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProviderProps.Initializer"></a>
+
+```typescript
+import { TokenInjectableDockerBuilderProviderProps } from 'token-injectable-docker-builder'
+
+const tokenInjectableDockerBuilderProviderProps: TokenInjectableDockerBuilderProviderProps = { ... }
+```
+
+#### Properties <a name="Properties" id="Properties"></a>
+
+| **Name** | **Type** | **Description** |
+| --- | --- | --- |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProviderProps.property.queryInterval">queryInterval</a></code> | <code>aws-cdk-lib.Duration</code> | How often the provider polls for build completion. |
+
+---
+
+##### `queryInterval`<sup>Optional</sup> <a name="queryInterval" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProviderProps.property.queryInterval"></a>
+
+```typescript
+public readonly queryInterval: Duration;
+```
+
+- *Type:* aws-cdk-lib.Duration
+- *Default:* Duration.seconds(30)
+
+How often the provider polls for build completion.
 
 ---
 
