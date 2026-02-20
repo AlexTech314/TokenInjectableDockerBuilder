@@ -427,9 +427,11 @@ export class TokenInjectableDockerBuilder extends Construct {
 
     const platformFlag = `--platform ${platform}`;
 
+    // --provenance=false --sbom=false: Docker Buildx v0.10+ adds attestations by default,
+    // producing OCI image indexes that AWS Lambda does not support. Disable them for Lambda/ECS compatibility.
     const buildCommand = cacheDisabled
       ? `docker build ${platformFlag} ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
-      : `docker buildx build --push ${platformFlag} --cache-from type=registry,ref=$ECR_REPO_URI:cache --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
+      : `docker buildx build --push ${platformFlag} --provenance=false --sbom=false --cache-from type=registry,ref=$ECR_REPO_URI:cache --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
 
     const buildSpecObj = {
       version: '0.2',

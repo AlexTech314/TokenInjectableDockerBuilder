@@ -570,8 +570,9 @@ When using the shared provider, `registerProject()` incrementally adds IAM permi
 
 1. **Build Errors**: Check the CodeBuild logs in CloudWatch Logs for detailed error messages. If you pass `buildLogGroup` with RETAIN removal policy, logs persist even after rollbacks. Otherwise, logs are deleted when the CodeBuild project is removed during rollback.
 2. **Lambda Errors**: Check the `onEvent` and `isComplete` Lambda function logs in CloudWatch Logs. With a shared provider, both builders' events flow through the same Lambdas—filter by `ProjectName` in the logs.
-3. **Permissions**: Ensure IAM roles have the required permissions for CodeBuild, ECR, Secrets Manager, and KMS if applicable. When using a shared provider, verify that `registerProject()` was called for each builder (this happens automatically when passing the `provider` prop).
-4. **Network Access**: If the build requires network access (e.g., to download dependencies or access internal APIs), ensure that the VPC configuration allows necessary network connectivity, and adjust security group rules accordingly.
+3. **"Image manifest, config or layer media type not supported" (Lambda)**: Docker Buildx v0.10+ adds provenance attestations by default, producing OCI image indexes that Lambda rejects. This construct disables them with `--provenance=false --sbom=false` so images are Lambda-compatible. If you see this error, ensure you're using a recent version of the construct.
+4. **Permissions**: Ensure IAM roles have the required permissions for CodeBuild, ECR, Secrets Manager, and KMS if applicable. When using a shared provider, verify that `registerProject()` was called for each builder (this happens automatically when passing the `provider` prop).
+5. **Network Access**: If the build requires network access (e.g., to download dependencies or access internal APIs), ensure that the VPC configuration allows necessary network connectivity, and adjust security group rules accordingly.
 
 ---
 
