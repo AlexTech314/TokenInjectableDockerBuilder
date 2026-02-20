@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { CustomResource, Duration, Stack } from 'aws-cdk-lib';
-import { Project, Source, LinuxBuildImage, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
+import { Project, Source, LinuxBuildImage, LinuxArmBuildImage, BuildSpec } from 'aws-cdk-lib/aws-codebuild';
 import { IVpc, ISecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 import { Repository, RepositoryEncryption, TagStatus } from 'aws-cdk-lib/aws-ecr';
 import { ContainerImage } from 'aws-cdk-lib/aws-ecs';
@@ -257,6 +257,16 @@ export interface TokenInjectableDockerBuilderProps {
   readonly buildLogGroup?: ILogGroup;
 
   /**
+   * Target platform for the Docker image.
+   *
+   * When set to `'linux/arm64'`, the construct uses a native ARM/Graviton
+   * CodeBuild instance for fast builds without emulation.
+   *
+   * @default 'linux/amd64'
+   */
+  readonly platform?: 'linux/amd64' | 'linux/arm64';
+
+  /**
    * Shared provider for the custom resource Lambdas.
    * Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` to create
    * a singleton that is shared across all builders in the same stack.
@@ -316,6 +326,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       file: dockerFile,
       cacheDisabled = false,
       buildLogGroup: buildLogGroupProp,
+      platform = 'linux/amd64',
       provider: sharedProvider,
     } = props;
 
@@ -401,9 +412,11 @@ export class TokenInjectableDockerBuilder extends Construct {
         'docker buildx create --driver docker-container --name ecr-cache-builder --use 2>/dev/null || docker buildx use ecr-cache-builder',
       ];
 
+    const platformFlag = `--platform ${platform}`;
+
     const buildCommand = cacheDisabled
-      ? `docker build ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
-      : `docker buildx build --push --cache-from type=registry,ref=$ECR_REPO_URI:cache --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
+      ? `docker build ${platformFlag} ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
+      : `docker buildx build --push ${platformFlag} --cache-from type=registry,ref=$ECR_REPO_URI:cache --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
 
     const buildSpecObj = {
       version: '0.2',
@@ -442,6 +455,11 @@ export class TokenInjectableDockerBuilder extends Construct {
       },
     };
 
+    const isArm = platform === 'linux/arm64';
+    const codeBuildImage = isArm
+      ? LinuxArmBuildImage.AMAZON_LINUX_2_STANDARD_3_0
+      : LinuxBuildImage.STANDARD_7_0;
+
     // Create the CodeBuild project
     const codeBuildProject = new Project(this, 'CodeBuildProject', {
       source: Source.s3({
@@ -449,7 +467,7 @@ export class TokenInjectableDockerBuilder extends Construct {
         path: sourceAsset.s3ObjectKey,
       }),
       environment: {
-        buildImage: LinuxBuildImage.STANDARD_7_0,
+        buildImage: codeBuildImage,
         privileged: true,
       },
       environmentVariables: {

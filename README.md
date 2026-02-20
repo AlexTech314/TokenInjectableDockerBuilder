@@ -25,6 +25,7 @@ For example, a Next.js frontend Docker image may require an API Gateway URL as a
 - **Custom Build Query Interval**: Configure how frequently the custom resource polls for build completion using the `completenessQueryInterval` property (defaults to 30 seconds).
 - **Custom Dockerfile**: Specify a custom Dockerfile name via the `file` property (e.g. `Dockerfile.production`), allowing multiple Docker images from the same source directory.
 - **ECR Docker Layer Caching**: By default, builds use `docker buildx` with ECR as a remote cache backend, reducing build times by reusing layers across deploys. Set `cacheDisabled: true` to force a clean build from scratch.
+- **Platform Support**: Build images for `linux/amd64` (x86_64) or `linux/arm64` (Graviton) using native CodeBuild instances — no emulation, no QEMU. ARM builds are faster and cheaper.
 - **Persistent Build Logs**: Pass `buildLogGroup` with a log group that has RETAIN removal policy so build logs survive rollbacks and stack deletion for debugging.
 
 ---
@@ -107,6 +108,7 @@ A singleton construct that creates the `onEvent` and `isComplete` Lambda functio
 | `exclude`                  | `string[]`                  | No       | A list of file paths in the Docker directory to exclude from the S3 asset bundle. If a `.dockerignore` file is present in the source directory, its contents will be used if this prop is not set. Defaults to an empty list or `.dockerignore` contents.                                    |
 | `file`                     | `string`                    | No       | The name of the Dockerfile to use for the build. Passed as `--file` to `docker build`. Useful when a project has multiple Dockerfiles (e.g. `Dockerfile.production`, `Dockerfile.admin`). Defaults to `Dockerfile`.                                                                        |
 | `cacheDisabled`           | `boolean`                   | No       | When `true`, disables Docker layer caching. Every build runs from scratch. Use for debugging, corrupted cache, or major dependency changes. Defaults to `false`.                                                                                                                          |
+| `platform`                 | `'linux/amd64' \| 'linux/arm64'` | No  | Target platform for the Docker image. When set to `'linux/arm64'`, uses a native ARM/Graviton CodeBuild instance for fast builds without emulation. Defaults to `'linux/amd64'`.                                                                                                      |
 | `buildLogGroup`            | `ILogGroup`                 | No       | CloudWatch log group for CodeBuild build logs. When provided with RETAIN removal policy, logs survive rollbacks and stack deletion. If not provided, CodeBuild uses default logging (logs are deleted on rollback).                                                                          |
 
 #### Instance Properties
@@ -155,6 +157,7 @@ export class MultiImageStack extends cdk.Stack {
     const frontendBuilder = new TokenInjectableDockerBuilder(this, 'FrontendImage', {
       path: './src/frontend',
       buildArgs: { API_URL: 'https://api.example.com' },
+      platform: 'linux/arm64', // Build natively on Graviton
       provider,
     });
 
@@ -515,6 +518,7 @@ When using the shared provider, `registerProject()` incrementally adds IAM permi
 - **Build Query Interval**: The polling frequency for checking build completion can be customized via the `completenessQueryInterval` property (per-instance) or `queryInterval` (shared provider).
 - **Custom Dockerfile**: Use the `file` property to specify a Dockerfile other than the default `Dockerfile`. This is passed as the `--file` flag to `docker build`.
 - **Docker Layer Caching**: By default, builds use ECR as a remote cache backend (via `docker buildx`), which can reduce build times by up to 25%. Set `cacheDisabled: true` when you need a clean build—for example, when debugging, the cache is corrupted, or after major dependency upgrades.
+- **Platform / Architecture**: Set `platform: 'linux/arm64'` to build ARM64/Graviton images using a native ARM CodeBuild instance. Defaults to `'linux/amd64'` (x86_64). Native builds are faster and cheaper than cross-compilation with QEMU.
 - **Build Log Retention**: Pass `buildLogGroup` with a log group that has RETAIN removal policy to ensure build logs survive CloudFormation rollbacks and stack deletion.
 - **Backward Compatibility**: The `provider` prop is optional. Omitting it preserves the original behavior where each builder creates its own Lambdas. Existing code works without changes.
 
