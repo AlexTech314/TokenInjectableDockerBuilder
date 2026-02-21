@@ -80,14 +80,18 @@ exports.handler = async (event) => {
             };
         }
 
-        // If the build is in a failed status, retrieve CloudWatch logs
         if (['FAILED', 'FAULT', 'STOPPED', 'TIMED_OUT'].includes(buildStatus)) {
-            console.log(`Build ended with status: ${buildStatus}. Attempting to retrieve last log lines...`);
+            const retainBuildLogs = event.ResourceProperties?.RetainBuildLogs === 'true';
             const logsInfo = build.logs;
-            console.log('Logs info:', JSON.stringify(logsInfo, null, 2));
+
+            if (retainBuildLogs && logsInfo?.groupName) {
+                throw new Error(
+                    `Build ${buildStatus}. Full logs preserved in CW log group: ${logsInfo.groupName}`
+                );
+            }
 
             if (logsInfo?.groupName && logsInfo?.streamName) {
-                console.log(`Retrieving up to 5 log events from CloudWatch Logs in group ${logsInfo.groupName} stream ${logsInfo.streamName}`);
+                console.log(`Retrieving last log events from ${logsInfo.groupName}/${logsInfo.streamName}`);
                 const logResp = await logsClient.send(
                     new GetLogEventsCommand({
                         logGroupName: logsInfo.groupName,
@@ -96,16 +100,14 @@ exports.handler = async (event) => {
                         limit: 5,
                     })
                 );
-                console.log('GetLogEventsCommand response:', JSON.stringify(logResp, null, 2));
-
                 const logEvents = logResp.events || [];
                 const lastFive = logEvents.map(e => e.message).reverse().join('\n');
                 console.error('Last 5 build log lines:\n', lastFive);
 
-                throw new Error(`Build failed with status ${buildStatus}. Last logs:\n${lastFive}`);
-            } else {
-                throw new Error(`Build failed with status: ${buildStatus}, but no logs found.`);
+                throw new Error(`Build ${buildStatus}. Last logs:\n${lastFive}`);
             }
+
+            throw new Error(`Build ${buildStatus}, but no log info available.`);
         }
 
         // If we reach here, it's an unexpected status

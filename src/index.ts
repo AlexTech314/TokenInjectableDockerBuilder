@@ -64,6 +64,16 @@ export class TokenInjectableDockerBuilderProvider extends Construct {
       handler: 'onEvent.handler',
       timeout: Duration.minutes(15),
     });
+    this.onEventHandlerFunction.addToRolePolicy(
+      new PolicyStatement({
+        actions: [
+          'logs:CreateLogGroup',
+          'logs:PutRetentionPolicy',
+          'logs:DeleteLogGroup',
+        ],
+        resources: ['arn:aws:logs:*:*:log-group:/docker-builder/*'],
+      }),
+    );
 
     this.isCompleteHandlerFunction = new Function(this, 'IsCompleteHandler', {
       runtime: Runtime.NODEJS_22_X,
@@ -288,6 +298,19 @@ export interface TokenInjectableDockerBuilderProps {
    * @default - No pull-through cache access
    */
   readonly ecrPullThroughCachePrefixes?: string[];
+
+  /**
+   * When `true`, creates a CloudWatch log group outside of CloudFormation
+   * (`/docker-builder/<projectName>`) and directs CodeBuild output there.
+   * Because the log group is managed imperatively (not by CloudFormation),
+   * it survives stack rollbacks and preserves full build logs for debugging.
+   * A 7-day retention policy is applied so old logs auto-expire.
+   *
+   * Set to `false` after debugging to delete the log group and clean up.
+   *
+   * @default false
+   */
+  readonly retainBuildLogs?: boolean;
 }
 
 /**
@@ -341,6 +364,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       platform = 'linux/amd64',
       provider: sharedProvider,
       ecrPullThroughCachePrefixes,
+      retainBuildLogs = false,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -563,6 +587,16 @@ export class TokenInjectableDockerBuilder extends Construct {
           resources: [codeBuildProject.projectArn],
         }),
       );
+      onEventHandlerFunction.addToRolePolicy(
+        new PolicyStatement({
+          actions: [
+            'logs:CreateLogGroup',
+            'logs:PutRetentionPolicy',
+            'logs:DeleteLogGroup',
+          ],
+          resources: ['arn:aws:logs:*:*:log-group:/docker-builder/*'],
+        }),
+      );
 
       const isCompleteHandlerFunction = new Function(this, 'IsCompleteHandlerFunction', {
         runtime: Runtime.NODEJS_22_X,
@@ -608,6 +642,7 @@ export class TokenInjectableDockerBuilder extends Construct {
         ProjectName: codeBuildProject.projectName,
         ImageTag: imageTag,
         Trigger: sourceAsset.assetHash,
+        RetainBuildLogs: retainBuildLogs ? 'true' : 'false',
       },
     });
     buildTriggerResource.node.addDependency(codeBuildProject);

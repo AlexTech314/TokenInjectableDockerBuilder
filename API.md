@@ -304,6 +304,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.platform">platform</a></code> | <code>string</code> | Target platform for the Docker image. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands">preBuildCommands</a></code> | <code>string[]</code> | Custom commands to run during the pre_build phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider">provider</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a></code> | Shared provider for the custom resource Lambdas. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.retainBuildLogs">retainBuildLogs</a></code> | <code>boolean</code> | When `true`, creates a CloudWatch log group outside of CloudFormation (`/docker-builder/<projectName>`) and directs CodeBuild output there. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.securityGroups">securityGroups</a></code> | <code>aws-cdk-lib.aws_ec2.ISecurityGroup[]</code> | The security groups to attach to the CodeBuild project. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.subnetSelection">subnetSelection</a></code> | <code>aws-cdk-lib.aws_ec2.SubnetSelection</code> | The subnet selection to specify which subnets to use within the VPC. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.vpc">vpc</a></code> | <code>aws-cdk-lib.aws_ec2.IVpc</code> | The VPC in which the CodeBuild project will be deployed. |
@@ -576,6 +577,25 @@ Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` to create
 a singleton that is shared across all builders in the same stack.
 
 When omitted, each builder creates its own Lambdas (original behavior).
+
+---
+
+##### `retainBuildLogs`<sup>Optional</sup> <a name="retainBuildLogs" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.retainBuildLogs"></a>
+
+```typescript
+public readonly retainBuildLogs: boolean;
+```
+
+- *Type:* boolean
+- *Default:* false
+
+When `true`, creates a CloudWatch log group outside of CloudFormation (`/docker-builder/<projectName>`) and directs CodeBuild output there.
+
+Because the log group is managed imperatively (not by CloudFormation),
+it survives stack rollbacks and preserves full build logs for debugging.
+A 7-day retention policy is applied so old logs auto-expire.
+
+Set to `false` after debugging to delete the log group and clean up.
 
 ---
 
