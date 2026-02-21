@@ -522,6 +522,8 @@ export class TokenInjectableDockerBuilder extends Construct {
             'ecr:BatchGetImage',
             'ecr:GetDownloadUrlForLayer',
             'ecr:BatchCheckLayerAvailability',
+            'ecr:BatchImportUpstreamImage',
+            'ecr:CreateRepository',
           ],
           resources: ecrPullThroughCachePrefixes.map(
             (prefix) => `arn:aws:ecr:${stack.region}:${stack.account}:repository/${prefix}/*`,
