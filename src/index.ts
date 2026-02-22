@@ -525,6 +525,24 @@ export class TokenInjectableDockerBuilder extends Construct {
       subnetSelection,
     });
 
+    // Grant CodeBuild permission to write to the retained build logs group
+    if (retainBuildLogs) {
+      const stack = Stack.of(this);
+      codeBuildProject.addToRolePolicy(
+        new PolicyStatement({
+          actions: [
+            'logs:CreateLogGroup',
+            'logs:CreateLogStream',
+            'logs:PutLogEvents',
+          ],
+          resources: [
+            `arn:aws:logs:${stack.region}:${stack.account}:log-group:/docker-builder/${codeBuildProject.projectName}`,
+            `arn:aws:logs:${stack.region}:${stack.account}:log-group:/docker-builder/${codeBuildProject.projectName}:*`,
+          ],
+        }),
+      );
+    }
+
     // Grant CodeBuild the ability to interact with ECR
     this.ecrRepository.grantPullPush(codeBuildProject);
     codeBuildProject.addToRolePolicy(
