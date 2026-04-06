@@ -373,6 +373,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file">file</a></code> | <code>string</code> | The name of the Dockerfile to use for the build. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands">installCommands</a></code> | <code>string[]</code> | Custom commands to run during the install phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.kmsEncryption">kmsEncryption</a></code> | <code>boolean</code> | Whether to enable KMS encryption for the ECR repository. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.maxImageCount">maxImageCount</a></code> | <code>number</code> | Maximum number of images to retain in the ECR repository. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.platform">platform</a></code> | <code>string</code> | Target platform for the Docker image. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands">preBuildCommands</a></code> | <code>string[]</code> | Custom commands to run during the pre_build phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider">provider</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a></code> | Shared provider for the custom resource Lambdas. |
@@ -594,6 +595,21 @@ Whether to enable KMS encryption for the ECR repository.
 
 If `true`, a KMS key will be created for encrypting ECR images.
 If `false`, the repository will use AES-256 encryption.
+
+---
+
+##### `maxImageCount`<sup>Optional</sup> <a name="maxImageCount" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.maxImageCount"></a>
+
+```typescript
+public readonly maxImageCount: number;
+```
+
+- *Type:* number
+- *Default:* 3
+
+Maximum number of images to retain in the ECR repository.
+
+A lifecycle rule automatically expires older images beyond this count.
 
 ---
 

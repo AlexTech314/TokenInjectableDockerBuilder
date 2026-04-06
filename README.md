@@ -20,7 +20,7 @@ For example, a Next.js frontend Docker image may require an API Gateway URL as a
 - **Custom Install and Pre-Build Commands**: Allows specifying custom commands to run during the `install` and `pre_build` phases of the CodeBuild build process.
 - **VPC Configuration**: Supports deploying the CodeBuild project within a VPC, with customizable security groups and subnet selection.
 - **Docker Login**: Supports Docker login using credentials stored in AWS Secrets Manager.
-- **ECR Repository Management**: Creates an ECR repository with lifecycle rules and encryption.
+- **ECR Repository Management**: Creates an ECR repository with lifecycle rules (keeps only 3 images by default, configurable via `maxImageCount`) and encryption.
 - **Integration with ECS and Lambda**: Provides outputs for use in AWS ECS and AWS Lambda.
 - **Custom Build Query Interval**: Configure how frequently the custom resource polls for build completion using the `completenessQueryInterval` property (defaults to 30 seconds).
 - **Custom Dockerfile**: Specify a custom Dockerfile name via the `file` property (e.g. `Dockerfile.production`), allowing multiple Docker images from the same source directory.
@@ -111,6 +111,7 @@ A singleton construct that creates the `onEvent` and `isComplete` Lambda functio
 | `cacheDisabled`           | `boolean`                   | No       | When `true`, disables Docker layer caching. Every build runs from scratch. Use for debugging, corrupted cache, or major dependency changes. Defaults to `false`.                                                                                                                          |
 | `platform`                 | `'linux/amd64' \| 'linux/arm64'` | No  | Target platform for the Docker image. When set to `'linux/arm64'`, uses a native ARM/Graviton CodeBuild instance for fast builds without emulation. Defaults to `'linux/amd64'`.                                                                                                      |
 | `buildLogGroup`            | `ILogGroup`                 | No       | CloudWatch log group for CodeBuild build logs. When provided with RETAIN removal policy, logs survive rollbacks and stack deletion. If not provided, CodeBuild uses default logging (logs are deleted on rollback).                                                                          |
+| `maxImageCount`              | `number`                  | No       | Maximum number of images to retain in the ECR repository. A lifecycle rule automatically expires older images beyond this count. Defaults to `3`. |
 | `ecrPullThroughCachePrefixes` | `string[]`               | No       | ECR pull-through cache repository prefixes to grant pull access to. Use when your Dockerfile references base images from ECR pull-through cache (e.g. `docker-hub/library/node:20-slim`, `ghcr/org/image:tag`). The CodeBuild role is granted `ecr:BatchGetImage`, `ecr:GetDownloadUrlForLayer`, and `ecr:BatchCheckLayerAvailability` on repositories matching each prefix. Example: `['docker-hub', 'ghcr']`. Defaults to no pull-through cache access. |
 
 #### Instance Properties
@@ -555,7 +556,7 @@ When using the shared provider, `registerProject()` incrementally adds IAM permi
 - **Custom Commands**: Use `installCommands` and `preBuildCommands` to run custom shell commands during the build process. This can be useful for installing dependencies or fetching configuration files.
 - **VPC Configuration**: If your build process requires access to resources within a VPC, you can specify the VPC, security groups, and subnet selection.
 - **Docker Login**: If you need to log in to a private Docker registry before building the image, provide the ARN of a secret in AWS Secrets Manager containing the Docker credentials.
-- **ECR Repository**: Automatically creates an ECR repository with lifecycle rules to manage image retention, encryption with a KMS key, and image scanning on push.
+- **ECR Repository**: Automatically creates an ECR repository with lifecycle rules to manage image retention (keeps 3 images by default, configurable via `maxImageCount`), encryption with a KMS key, and image scanning on push.
 - **Build Query Interval**: The polling frequency for checking build completion can be customized via the `completenessQueryInterval` property (per-instance) or `queryInterval` (shared provider).
 - **Custom Dockerfile**: Use the `file` property to specify a Dockerfile other than the default `Dockerfile`. This is passed as the `--file` flag to `docker build`.
 - **Docker Layer Caching**: By default, builds use ECR as a remote cache backend (via `docker buildx`), which can reduce build times by up to 25%. Set `cacheDisabled: true` when you need a clean build—for example, when debugging, the cache is corrupted, or after major dependency upgrades.

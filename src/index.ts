@@ -300,6 +300,14 @@ export interface TokenInjectableDockerBuilderProps {
   readonly ecrPullThroughCachePrefixes?: string[];
 
   /**
+   * Maximum number of images to retain in the ECR repository.
+   * A lifecycle rule automatically expires older images beyond this count.
+   *
+   * @default 3
+   */
+  readonly maxImageCount?: number;
+
+  /**
    * When `true`, creates a CloudWatch log group outside of CloudFormation
    * (`/docker-builder/<projectName>`) and directs CodeBuild output there.
    * Because the log group is managed imperatively (not by CloudFormation),
@@ -365,6 +373,7 @@ export class TokenInjectableDockerBuilder extends Construct {
       provider: sharedProvider,
       ecrPullThroughCachePrefixes,
       retainBuildLogs = false,
+      maxImageCount = 3,
     } = props;
 
     // Generate an ephemeral tag for CodeBuild
@@ -386,6 +395,12 @@ export class TokenInjectableDockerBuilder extends Construct {
           description: 'Remove untagged images after 1 day',
           tagStatus: TagStatus.UNTAGGED,
           maxImageAge: Duration.days(1),
+        },
+        {
+          rulePriority: 2,
+          description: `Keep only ${maxImageCount} most recent images`,
+          tagStatus: TagStatus.ANY,
+          maxImageCount,
         },
       ],
       encryption: kmsEncryption ? RepositoryEncryption.KMS : RepositoryEncryption.AES_256,
