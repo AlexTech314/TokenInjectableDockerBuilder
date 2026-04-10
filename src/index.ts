@@ -89,7 +89,6 @@ export class TokenInjectableDockerBuilderProvider extends Construct {
           'logs:GetLogEvents',
           'logs:DescribeLogStreams',
           'logs:DescribeLogGroups',
-          'ecr:DescribeImages',
         ],
         resources: ['*'],
       }),
@@ -441,27 +440,14 @@ export class TokenInjectableDockerBuilder extends Construct {
       });
     }
 
+    // Generate an ephemeral tag for CodeBuild
+    const imageTag = crypto.randomUUID();
+
     // Wrap the source folder as an S3 asset for CodeBuild to use
     const sourceAsset = new Asset(this, 'SourceAsset', {
       path: sourcePath,
       exclude: effectiveExclude,
     });
-
-    // Compute a deterministic image tag from all build inputs. Same source +
-    // same buildArgs + same Dockerfile + same platform → same tag → no rebuild,
-    // no ECR churn. Different inputs → different tag → new image pushed.
-    //
-    // This replaces the previous `crypto.randomUUID()` which generated a new
-    // tag on every synth, forcing a rebuild and Lambda update on every deploy
-    // even when nothing changed.
-    const imageTag = 'src-' + crypto
-      .createHash('sha256')
-      .update(sourceAsset.assetHash)
-      .update(JSON.stringify(buildArgs ?? {}))
-      .update(dockerFile ?? 'Dockerfile')
-      .update(platform)
-      .digest('hex')
-      .substring(0, 16);
 
     // Convert buildArgs to a CLI-friendly string
     const buildArgsString = buildArgs
@@ -675,7 +661,6 @@ export class TokenInjectableDockerBuilder extends Construct {
             'logs:GetLogEvents',
             'logs:DescribeLogStreams',
             'logs:DescribeLogGroups',
-            'ecr:DescribeImages',
           ],
           resources: ['*'],
         }),
@@ -696,31 +681,29 @@ export class TokenInjectableDockerBuilder extends Construct {
       serviceToken = provider.serviceToken;
     }
 
-    // Custom Resource that triggers the CodeBuild and waits for completion.
-    // RepositoryName is passed so the isComplete handler can query ECR for
-    // the image digest after the build succeeds.
+    // Custom Resource that triggers the CodeBuild and waits for completion
     const buildTriggerResource = new CustomResource(this, 'BuildTriggerResource', {
       serviceToken,
       properties: {
         ProjectName: codeBuildProject.projectName,
-        RepositoryName: this.ecrRepository.repositoryName,
         ImageTag: imageTag,
-        Trigger: imageTag,
+        Trigger: sourceAsset.assetHash,
         RetainBuildLogs: retainBuildLogs ? 'true' : 'false',
       },
     });
     buildTriggerResource.node.addDependency(codeBuildProject);
 
-    // Reference the image by DIGEST, not tag. The digest is content-addressable
-    // and immutable: even if the tag is later moved or deleted, Lambda's pinned
-    // reference still works as long as the digest exists in ECR. This is the
-    // safety mechanism that prevents the "Image ID cannot be found" failure
-    // mode when CFN rolls back and re-pushes the same tag with different
-    // content.
-    const imageDigestRef = buildTriggerResource.getAttString('ImageDigest');
-    this.containerImage = ContainerImage.fromEcrRepository(this.ecrRepository, imageDigestRef);
+    // Retrieve the final Docker image tag from Data.ImageTag.
+    // SAFETY: We reference by tag (not digest) here. The lifecycle policy
+    // above never deletes tagged images, so the digest behind this tag is
+    // guaranteed to remain in ECR for the life of the repository — even
+    // after rollbacks. (Digest references would be more robust against
+    // manual deletion, but CDK's L2 constructs don't accept tokenized
+    // digest values cleanly, so we keep the simpler tag form.)
+    const imageTagRef = buildTriggerResource.getAttString('ImageTag');
+    this.containerImage = ContainerImage.fromEcrRepository(this.ecrRepository, imageTagRef);
     this.dockerImageCode = DockerImageCode.fromEcr(this.ecrRepository, {
-      tagOrDigest: imageDigestRef,
+      tagOrDigest: imageTagRef,
     });
   }
 }
