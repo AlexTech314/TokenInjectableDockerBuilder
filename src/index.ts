@@ -89,6 +89,7 @@ export class TokenInjectableDockerBuilderProvider extends Construct {
           'logs:GetLogEvents',
           'logs:DescribeLogStreams',
           'logs:DescribeLogGroups',
+          'ecr:DescribeImages',
         ],
         resources: ['*'],
       }),
@@ -300,10 +301,17 @@ export interface TokenInjectableDockerBuilderProps {
   readonly ecrPullThroughCachePrefixes?: string[];
 
   /**
-   * Maximum number of images to retain in the ECR repository.
-   * A lifecycle rule automatically expires older images beyond this count.
+   * Maximum number of tagged images to retain in the ECR repository.
    *
-   * @default 3
+   * **WARNING:** Lambda functions pin images by digest internally even when
+   * referenced by tag. Setting this can delete images that Lambda functions
+   * (and ECS tasks) are still pinned to, breaking the next configuration
+   * update with "Image ID cannot be found".
+   *
+   * Leave undefined (the default) for production use. Untagged images are
+   * always cleaned up after 30 days regardless of this setting.
+   *
+   * @default undefined - no count-based expiration; only untagged-after-30-days
    */
   readonly maxImageCount?: number;
 
@@ -373,11 +381,8 @@ export class TokenInjectableDockerBuilder extends Construct {
       provider: sharedProvider,
       ecrPullThroughCachePrefixes,
       retainBuildLogs = false,
-      maxImageCount = 3,
+      maxImageCount,
     } = props;
-
-    // Generate an ephemeral tag for CodeBuild
-    const imageTag = crypto.randomUUID();
 
     // Optionally define a KMS key for ECR encryption if requested
     let encryptionKey: Key | undefined;
@@ -387,21 +392,27 @@ export class TokenInjectableDockerBuilder extends Construct {
       });
     }
 
-    // Create an ECR repository (optionally with KMS encryption)
+    // Create an ECR repository (optionally with KMS encryption).
+    //
+    // SAFETY: We deliberately do NOT delete tagged images by default.
+    // Lambda functions pin images by digest internally; deleting an in-use
+    // tagged image makes the Lambda's next config update fail with
+    // "Image ID cannot be found". Users can opt-in to maxImageCount, but
+    // it carries a strong warning in the prop docs.
     this.ecrRepository = new Repository(this, 'ECRRepository', {
       lifecycleRules: [
         {
           rulePriority: 1,
-          description: 'Remove untagged images after 1 day',
+          description: 'Remove untagged images after 30 days',
           tagStatus: TagStatus.UNTAGGED,
-          maxImageAge: Duration.days(1),
+          maxImageAge: Duration.days(30),
         },
-        {
+        ...(maxImageCount !== undefined ? [{
           rulePriority: 2,
-          description: `Keep only ${maxImageCount} most recent images`,
+          description: `(OPT-IN, UNSAFE) Keep only ${maxImageCount} most recent tagged images`,
           tagStatus: TagStatus.ANY,
           maxImageCount,
-        },
+        }] : []),
       ],
       encryption: kmsEncryption ? RepositoryEncryption.KMS : RepositoryEncryption.AES_256,
       encryptionKey: kmsEncryption ? encryptionKey : undefined,
@@ -435,6 +446,22 @@ export class TokenInjectableDockerBuilder extends Construct {
       path: sourcePath,
       exclude: effectiveExclude,
     });
+
+    // Compute a deterministic image tag from all build inputs. Same source +
+    // same buildArgs + same Dockerfile + same platform → same tag → no rebuild,
+    // no ECR churn. Different inputs → different tag → new image pushed.
+    //
+    // This replaces the previous `crypto.randomUUID()` which generated a new
+    // tag on every synth, forcing a rebuild and Lambda update on every deploy
+    // even when nothing changed.
+    const imageTag = 'src-' + crypto
+      .createHash('sha256')
+      .update(sourceAsset.assetHash)
+      .update(JSON.stringify(buildArgs ?? {}))
+      .update(dockerFile ?? 'Dockerfile')
+      .update(platform)
+      .digest('hex')
+      .substring(0, 16);
 
     // Convert buildArgs to a CLI-friendly string
     const buildArgsString = buildArgs
@@ -648,6 +675,7 @@ export class TokenInjectableDockerBuilder extends Construct {
             'logs:GetLogEvents',
             'logs:DescribeLogStreams',
             'logs:DescribeLogGroups',
+            'ecr:DescribeImages',
           ],
           resources: ['*'],
         }),
@@ -668,23 +696,31 @@ export class TokenInjectableDockerBuilder extends Construct {
       serviceToken = provider.serviceToken;
     }
 
-    // Custom Resource that triggers the CodeBuild and waits for completion
+    // Custom Resource that triggers the CodeBuild and waits for completion.
+    // RepositoryName is passed so the isComplete handler can query ECR for
+    // the image digest after the build succeeds.
     const buildTriggerResource = new CustomResource(this, 'BuildTriggerResource', {
       serviceToken,
       properties: {
         ProjectName: codeBuildProject.projectName,
+        RepositoryName: this.ecrRepository.repositoryName,
         ImageTag: imageTag,
-        Trigger: sourceAsset.assetHash,
+        Trigger: imageTag,
         RetainBuildLogs: retainBuildLogs ? 'true' : 'false',
       },
     });
     buildTriggerResource.node.addDependency(codeBuildProject);
 
-    // Retrieve the final Docker image tag from Data.ImageTag
-    const imageTagRef = buildTriggerResource.getAttString('ImageTag');
-    this.containerImage = ContainerImage.fromEcrRepository(this.ecrRepository, imageTagRef);
+    // Reference the image by DIGEST, not tag. The digest is content-addressable
+    // and immutable: even if the tag is later moved or deleted, Lambda's pinned
+    // reference still works as long as the digest exists in ECR. This is the
+    // safety mechanism that prevents the "Image ID cannot be found" failure
+    // mode when CFN rolls back and re-pushes the same tag with different
+    // content.
+    const imageDigestRef = buildTriggerResource.getAttString('ImageDigest');
+    this.containerImage = ContainerImage.fromEcrRepository(this.ecrRepository, imageDigestRef);
     this.dockerImageCode = DockerImageCode.fromEcr(this.ecrRepository, {
-      tagOrDigest: imageTagRef,
+      tagOrDigest: imageDigestRef,
     });
   }
 }

@@ -7,6 +7,10 @@ const {
     CloudWatchLogsClient,
     GetLogEventsCommand,
 } = require('@aws-sdk/client-cloudwatch-logs');
+const {
+    ECRClient,
+    DescribeImagesCommand,
+} = require('@aws-sdk/client-ecr');
 
 exports.handler = async (event) => {
     console.log('--- isComplete Handler Invoked ---');
@@ -16,6 +20,7 @@ exports.handler = async (event) => {
     const region = process.env.AWS_REGION;
     const codebuildClient = new CodeBuildClient({ region });
     const logsClient = new CloudWatchLogsClient({ region });
+    const ecrClient = new ECRClient({ region });
 
     try {
         const projectName = event.ResourceProperties?.ProjectName;
@@ -69,13 +74,42 @@ exports.handler = async (event) => {
             return { IsComplete: false };
         }
 
-        // If build succeeded, return the image tag from the custom resource properties
+        // If build succeeded, query ECR for the image digest of the just-pushed
+        // tag. We return the digest (sha256:...) so consumers can pin to it.
+        // Tags are mutable; digests are content-addressable and immutable.
         if (buildStatus === 'SUCCEEDED') {
             const imageTag = event.ResourceProperties?.ImageTag || process.env.IMAGE_TAG;
+            const repositoryName = event.ResourceProperties?.RepositoryName;
+
+            if (!repositoryName) {
+                throw new Error('Missing RepositoryName in ResourceProperties');
+            }
+
+            console.log(`Querying ECR for digest of ${repositoryName}:${imageTag}...`);
+            const describeResp = await ecrClient.send(
+                new DescribeImagesCommand({
+                    repositoryName,
+                    imageIds: [{ imageTag }],
+                }),
+            );
+            console.log('DescribeImagesCommand response:', JSON.stringify(describeResp, null, 2));
+
+            const imageDetail = describeResp.imageDetails?.[0];
+            if (!imageDetail || !imageDetail.imageDigest) {
+                throw new Error(
+                    `Image ${repositoryName}:${imageTag} was not found in ECR after a successful build. ` +
+                    'This indicates the CodeBuild project did not push the image correctly.',
+                );
+            }
+
+            const imageDigest = imageDetail.imageDigest;
+            console.log(`Resolved digest: ${imageDigest}`);
+
             return {
                 IsComplete: true,
                 Data: {
                     ImageTag: imageTag,
+                    ImageDigest: imageDigest,
                 },
             };
         }

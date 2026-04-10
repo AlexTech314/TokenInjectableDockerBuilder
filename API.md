@@ -373,7 +373,7 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file">file</a></code> | <code>string</code> | The name of the Dockerfile to use for the build. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands">installCommands</a></code> | <code>string[]</code> | Custom commands to run during the install phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.kmsEncryption">kmsEncryption</a></code> | <code>boolean</code> | Whether to enable KMS encryption for the ECR repository. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.maxImageCount">maxImageCount</a></code> | <code>number</code> | Maximum number of images to retain in the ECR repository. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.maxImageCount">maxImageCount</a></code> | <code>number</code> | Maximum number of tagged images to retain in the ECR repository. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.platform">platform</a></code> | <code>string</code> | Target platform for the Docker image. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands">preBuildCommands</a></code> | <code>string[]</code> | Custom commands to run during the pre_build phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider">provider</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a></code> | Shared provider for the custom resource Lambdas. |
@@ -605,11 +605,17 @@ public readonly maxImageCount: number;
 ```
 
 - *Type:* number
-- *Default:* 3
+- *Default:* undefined - no count-based expiration; only untagged-after-30-days
 
-Maximum number of images to retain in the ECR repository.
+Maximum number of tagged images to retain in the ECR repository.
 
-A lifecycle rule automatically expires older images beyond this count.
+**WARNING:** Lambda functions pin images by digest internally even when
+referenced by tag. Setting this can delete images that Lambda functions
+(and ECS tasks) are still pinned to, breaking the next configuration
+update with "Image ID cannot be found".
+
+Leave undefined (the default) for production use. Untagged images are
+always cleaned up after 30 days regardless of this setting.
 
 ---
 
