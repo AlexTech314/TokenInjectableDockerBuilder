@@ -80,6 +80,27 @@ exports.handler = async (event, context) => {
             const command = new StartBuildCommand(params);
             const build = await codebuildClient.send(command);
             console.log('Started build:', JSON.stringify(build, null, 2));
+
+            // Pass the build ID through to isComplete via Data so it polls
+            // *this* build, not whatever ListBuildsForProject returns. The
+            // CDK Provider framework merges onEvent's Data into the event
+            // passed to isComplete (see createResponseEvent in
+            // aws-cdk-lib/custom-resources/.../framework.js).
+            //
+            // Without this, eventual consistency in the Builds listing API
+            // can return the previous SUCCEEDED build before the newly-
+            // started build appears. isComplete then reports success
+            // immediately with the new (not-yet-pushed) image tag,
+            // breaking the downstream Lambda/ECS update with "Source
+            // image does not exist".
+            const startedBuildId = build?.build?.id;
+            if (!startedBuildId) {
+                throw new Error('StartBuild succeeded but returned no build.id');
+            }
+            return {
+                PhysicalResourceId: physicalResourceId,
+                Data: { BuildId: startedBuildId },
+            };
         } catch (error) {
             console.error('Error starting build:', error);
 

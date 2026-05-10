@@ -1,6 +1,5 @@
 const {
     CodeBuildClient,
-    ListBuildsForProjectCommand,
     BatchGetBuildsCommand,
 } = require('@aws-sdk/client-codebuild');
 const {
@@ -31,23 +30,26 @@ exports.handler = async (event) => {
             return { IsComplete: true };
         }
 
-        // 1) Retrieve the latest build ID for this project
-        console.log('Querying CodeBuild for the most recent build...');
-        const listResp = await codebuildClient.send(
-            new ListBuildsForProjectCommand({
-                projectName,
-                sortOrder: 'DESCENDING',
-                maxResults: 1,
-            })
-        );
-        console.log('ListBuildsForProjectCommand response:', JSON.stringify(listResp, null, 2));
-
-        if (!listResp.ids || listResp.ids.length === 0) {
-            throw new Error(`No builds found for project: ${projectName}`);
+        // The build ID is passed through from onEvent via Data.BuildId
+        // (the CDK Provider framework merges onEvent's response into the
+        // event passed to isComplete — see createResponseEvent in
+        // aws-cdk-lib/custom-resources/.../framework.js).
+        //
+        // We deliberately do NOT fall back to ListBuildsForProject here:
+        // its eventual-consistency window can return a previous SUCCEEDED
+        // build before the just-started one appears, causing isComplete
+        // to signal success with the new (not-yet-pushed) image tag and
+        // breaking the downstream Lambda/ECS update with "Source image
+        // does not exist".
+        const buildId = event.Data?.BuildId;
+        if (!buildId) {
+            throw new Error(
+                'Missing Data.BuildId in isComplete event. onEvent must ' +
+                'return the started build ID via Data.BuildId — confirm ' +
+                'you are running a matched onEvent + isComplete pair.'
+            );
         }
-
-        const buildId = listResp.ids[0];
-        console.log(`Identified latest Build ID: ${buildId}`);
+        console.log(`Polling Build ID from onEvent: ${buildId}`);
 
         // 2) Get details about that specific build
         const batchResp = await codebuildClient.send(
