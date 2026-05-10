@@ -43,10 +43,25 @@ exports.handler = async (event) => {
         // does not exist".
         const buildId = event.Data?.BuildId;
         if (!buildId) {
+            // onEvent's catch block returns Data:{} and Reason:<error.message>
+            // when StartBuild fails (e.g. AccountSuspendedException,
+            // permission denial, regional service health). The framework
+            // forwards Reason into our event, so surface it here instead of
+            // burying the real cause behind a misleading "Missing field"
+            // message — without this, the operator has to dig through the
+            // onEvent Lambda's CloudWatch logs to find why the build never
+            // started.
+            const upstreamReason = event.Reason;
+            if (upstreamReason) {
+                throw new Error(
+                    `onEvent failed to start a CodeBuild build: ${upstreamReason}`
+                );
+            }
             throw new Error(
-                'Missing Data.BuildId in isComplete event. onEvent must ' +
-                'return the started build ID via Data.BuildId — confirm ' +
-                'you are running a matched onEvent + isComplete pair.'
+                'Missing Data.BuildId in isComplete event and no Reason ' +
+                'provided by onEvent. Confirm you are running a matched ' +
+                'onEvent + isComplete pair (both shipped in the same ' +
+                'token-injectable-docker-builder release).'
             );
         }
         console.log(`Polling Build ID from onEvent: ${buildId}`);
