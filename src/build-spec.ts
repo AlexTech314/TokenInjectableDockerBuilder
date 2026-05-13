@@ -90,9 +90,13 @@ export function buildBuildSpec(opts: BuildSpecOptions): Record<string, unknown> 
 
   // --provenance=false --sbom=false: Docker Buildx v0.10+ adds attestations by default,
   // producing OCI image indexes that AWS Lambda does not support.
+  // ignore-error=true on --cache-from: on the very first build, the
+  // `:cache` tag doesn't exist yet and a strict cache-from would fail
+  // with `invalid response status 404`. ignore-error tells buildx to
+  // treat a missing cache as "no cache available" instead of a fatal error.
   const buildCommand = cacheDisabled
     ? `docker build ${platformFlag} ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
-    : `docker buildx build --push ${platformFlag} --provenance=false --sbom=false --cache-from type=registry,ref=$ECR_REPO_URI:cache --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
+    : `docker buildx build --push ${platformFlag} --provenance=false --sbom=false --cache-from type=registry,ref=$ECR_REPO_URI:cache,ignore-error=true --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
 
   return {
     version: '0.2',

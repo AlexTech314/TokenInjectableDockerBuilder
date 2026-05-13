@@ -277,6 +277,30 @@ describe('TokenInjectableDockerBuilder', () => {
     })).toThrow(/at most 10 rules per registry/);
   });
 
+  test('buildx cache-from uses ignore-error=true so first deploys do not fail on missing :cache tag', () => {
+    const app = new cdk.App();
+    const stack = new cdk.Stack(app, 'TestStack');
+
+    new TokenInjectableDockerBuilder(stack, 'TestBuilder', {
+      path: path.resolve(__dirname, './blank'),
+    });
+
+    const template = Template.fromStack(stack);
+    template.hasResourceProperties('AWS::CodeBuild::Project', {
+      Source: {
+        BuildSpec: Match.serializedJson(Match.objectLike({
+          phases: {
+            build: {
+              commands: Match.arrayWith([
+                Match.stringLikeRegexp('cache-from type=registry,ref=\\$ECR_REPO_URI:cache,ignore-error=true'),
+              ]),
+            },
+          },
+        })),
+      },
+    });
+  });
+
   test('build CR uses BuildTriggerResourceV2 logical ID to allow v1→v2 serviceToken change', () => {
     const app = new cdk.App();
     const stack = new cdk.Stack(app, 'TestStack');
