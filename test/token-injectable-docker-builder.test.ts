@@ -277,7 +277,7 @@ describe('TokenInjectableDockerBuilder', () => {
     })).toThrow(/at most 10 rules per registry/);
   });
 
-  test('buildx cache-from uses ignore-error=true so first deploys do not fail on missing :cache tag', () => {
+  test('buildx cache-from is conditional on :cache tag existence so first deploys do not fail', () => {
     const app = new cdk.App();
     const stack = new cdk.Stack(app, 'TestStack');
 
@@ -290,9 +290,16 @@ describe('TokenInjectableDockerBuilder', () => {
       Source: {
         BuildSpec: Match.serializedJson(Match.objectLike({
           phases: {
+            // pre_build probes for the :cache tag and sets $CACHE_FROM_FLAG.
+            pre_build: {
+              commands: Match.arrayWith([
+                Match.stringLikeRegexp('aws ecr describe-images.*imageTag=cache'),
+              ]),
+            },
+            // build uses $CACHE_FROM_FLAG (empty on first build, populated on subsequent).
             build: {
               commands: Match.arrayWith([
-                Match.stringLikeRegexp('cache-from type=registry,ref=\\$ECR_REPO_URI:cache,ignore-error=true'),
+                Match.stringLikeRegexp('\\$CACHE_FROM_FLAG --cache-to'),
               ]),
             },
           },

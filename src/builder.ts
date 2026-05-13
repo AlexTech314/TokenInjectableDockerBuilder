@@ -479,6 +479,10 @@ export class TokenInjectableDockerBuilder extends Construct {
           'ecr:GetDownloadUrlForLayer',
           'ecr:BatchCheckLayerAvailability',
           'ecr:BatchGetImage',
+          // DescribeImages: pre_build probes for the :cache tag's existence
+          // and only attaches --cache-from when it exists; without this
+          // permission the probe AccessDenies and the build crashes.
+          'ecr:DescribeImages',
         ],
         resources: ['*'],
       }),

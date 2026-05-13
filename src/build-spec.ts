@@ -90,13 +90,31 @@ export function buildBuildSpec(opts: BuildSpecOptions): Record<string, unknown> 
 
   // --provenance=false --sbom=false: Docker Buildx v0.10+ adds attestations by default,
   // producing OCI image indexes that AWS Lambda does not support.
-  // ignore-error=true on --cache-from: on the very first build, the
-  // `:cache` tag doesn't exist yet and a strict cache-from would fail
-  // with `invalid response status 404`. ignore-error tells buildx to
-  // treat a missing cache as "no cache available" instead of a fatal error.
+  // $CACHE_FROM_FLAG is set in pre_build: empty on first build (when
+  // the `:cache` tag doesn't exist yet — buildx 0.20 still rejects this
+  // even with `ignore-error=true` at the importer-configure step),
+  // populated on subsequent builds so cache is reused. This avoids the
+  // `failed to configure registry cache importer: ...:cache: not found`
+  // / `invalid response status 404` crash on the first deploy.
   const buildCommand = cacheDisabled
     ? `docker build ${platformFlag} ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`
-    : `docker buildx build --push ${platformFlag} --provenance=false --sbom=false --cache-from type=registry,ref=$ECR_REPO_URI:cache,ignore-error=true --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
+    : `docker buildx build --push ${platformFlag} --provenance=false --sbom=false $CACHE_FROM_FLAG --cache-to type=registry,ref=$ECR_REPO_URI:cache,mode=max,image-manifest=true ${dockerFileFlag} ${buildArgsString} -t $ECR_REPO_URI:${imageTag} $CODEBUILD_SRC_DIR`;
+
+  // Pre-build cache probe: only attach --cache-from when the :cache tag
+  // already exists in this repo. Skipped when caching is disabled entirely.
+  const cacheProbeCommands = cacheDisabled
+    ? []
+    : [
+      'echo "Probing for existing :cache tag in ECR..."',
+      'export ECR_REPO_NAME=$(echo $ECR_REPO_URI | cut -d/ -f2-)',
+      'if aws ecr describe-images --repository-name $ECR_REPO_NAME --image-ids imageTag=cache --region $AWS_DEFAULT_REGION >/dev/null 2>&1; then '
+        + 'export CACHE_FROM_FLAG="--cache-from type=registry,ref=$ECR_REPO_URI:cache"; '
+        + 'echo "Cache tag exists, will pull cache from registry."; '
+        + 'else '
+        + 'export CACHE_FROM_FLAG=""; '
+        + 'echo "No :cache tag yet (first build); skipping --cache-from."; '
+        + 'fi',
+    ];
 
   return {
     version: '0.2',
@@ -116,6 +134,7 @@ export function buildBuildSpec(opts: BuildSpecOptions): Record<string, unknown> 
           'export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)',
           'echo "Logging into Amazon ECR..."',
           'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com',
+          ...cacheProbeCommands,
         ],
       },
       build: {
