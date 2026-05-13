@@ -25,10 +25,11 @@ tsconfig.tsbuildinfo
 cdk.out
 cdk.context.json
 coverage
-lib/integ.*
 test-docker
+integAssertions
 !isComplete/*.js
 !onEvent/*.js
+!ecrReplication/*.js
 /.gitattributes
 /.projenrc.ts
 /projenrc

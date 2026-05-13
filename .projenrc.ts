@@ -4,7 +4,7 @@ import { NodePackageManager } from 'projen/lib/javascript';
 const project = new awscdk.AwsCdkConstructLibrary({
   author: 'AlexTech314',
   authorAddress: 'alest314@gmail.com',
-  majorVersion: 1,
+  majorVersion: 2,
   cdkVersion: '2.238.0',
   defaultReleaseBranch: 'main',
   packageManager: NodePackageManager.NPM,
@@ -40,7 +40,14 @@ const project = new awscdk.AwsCdkConstructLibrary({
     'infrastructure-as-code',
     'awscdk',
   ],
-  devDeps: ['jsii-docgen@^10.11.0'],
+  devDeps: [
+    'jsii-docgen@^10.11.0',
+    '@aws-cdk/integ-tests-alpha@2.238.0-alpha.0',
+    '@aws-cdk/integ-runner@^2.197.0',
+    // v1 of ourself, aliased so the migration integ test (test/migration/before-v1.ts)
+    // can import the previous major version side-by-side with `../src` (v2).
+    'token-injectable-docker-builder-v1@npm:token-injectable-docker-builder@^1.13.0',
+  ],
   license: 'MIT',
   publishToPypi: {
     distName: 'token-injectable-docker-builder',
@@ -51,15 +58,26 @@ const project = new awscdk.AwsCdkConstructLibrary({
 const common_exclude = ['cdk.out', 'cdk.context.json', 'coverage'];
 
 project.gitignore.exclude(...common_exclude);
-project.npmignore!.exclude(...common_exclude, 'lib/integ.*', 'test-docker');
+project.npmignore!.exclude(
+  ...common_exclude,
+  'test-docker',
+  'integAssertions',
+);
 
-project.npmignore!.include('isComplete/*.js', 'onEvent/*.js');
+project.npmignore!.include('isComplete/*.js', 'onEvent/*.js', 'ecrReplication/*.js');
 
 project.addScripts({
-  'local-deploy': 'npx cdk deploy --app "npx ts-node src/integ.default.ts"',
-  'local-deploy-no-rollback': 'npx cdk deploy --no-rollback --app "npx ts-node src/integ.default.ts"',
-  'local-destroy': 'npx cdk destroy --app "npx ts-node src/integ.default.ts"',
-  'local-synth': 'npx cdk synth --app "npx ts-node src/integ.default.ts"',
+  'local-deploy': 'npx cdk deploy --all --app "npx ts-node test/integ.default.ts"',
+  'local-deploy-no-rollback': 'npx cdk deploy --all --no-rollback --app "npx ts-node test/integ.default.ts"',
+  'local-destroy': 'npx cdk destroy --all --app "npx ts-node test/integ.default.ts"',
+  'local-synth': 'npx cdk synth --app "npx ts-node test/integ.default.ts"',
+  'integ': 'npx integ-runner --update-on-failed --directory test',
+  // v1→v2 upgrade simulation: deploy a stack with v1, then re-deploy the
+  // same stack with v2 (no destroy in between), then tear down.
+  'integ-migration':
+    'npx cdk deploy TidbMigrationStack --app "npx ts-node test/migration/before-v1.ts" --require-approval=never && '
+    + 'npx cdk deploy TidbMigrationStack --app "npx ts-node test/migration/after-v2.ts" --require-approval=never && '
+    + 'npx cdk destroy TidbMigrationStack --app "npx ts-node test/migration/after-v2.ts" --force',
 });
 
 project.synth();

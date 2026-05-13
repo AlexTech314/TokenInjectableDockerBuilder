@@ -6,6 +6,35 @@ const {
     CloudWatchLogsClient,
     GetLogEventsCommand,
 } = require('@aws-sdk/client-cloudwatch-logs');
+const {
+    ECRClient,
+    BatchGetImageCommand,
+} = require('@aws-sdk/client-ecr');
+
+async function checkReplicaAvailability(repositoryName, imageTag, replicaRegions) {
+    for (const region of replicaRegions) {
+        const ecr = new ECRClient({ region });
+        try {
+            const resp = await ecr.send(new BatchGetImageCommand({
+                repositoryName,
+                imageIds: [{ imageTag }],
+            }));
+            const images = resp.images || [];
+            if (images.length === 0) {
+                console.log(`Replica ${region}: repo exists but tag ${imageTag} not yet present.`);
+                return false;
+            }
+            console.log(`Replica ${region}: image present.`);
+        } catch (err) {
+            if (err.name === 'RepositoryNotFoundException') {
+                console.log(`Replica ${region}: destination repo not yet created by ECR replication.`);
+                return false;
+            }
+            throw err;
+        }
+    }
+    return true;
+}
 
 exports.handler = async (event) => {
     console.log('--- isComplete Handler Invoked ---');
@@ -86,9 +115,24 @@ exports.handler = async (event) => {
             return { IsComplete: false };
         }
 
-        // If build succeeded, return the image tag from the custom resource properties
+        // If build succeeded, optionally wait for cross-region replicas to land
+        // before signalling complete. ECR replication is async (most images
+        // <30 min, rare cases longer) — without this, a consumer stack in
+        // another region may try to pull the image before it's been
+        // replicated and fail with "Source image does not exist".
         if (buildStatus === 'SUCCEEDED') {
             const imageTag = event.ResourceProperties?.ImageTag || process.env.IMAGE_TAG;
+            const repositoryName = event.ResourceProperties?.RepositoryName;
+            const replicaRegions = JSON.parse(event.ResourceProperties?.ReplicaRegions || '[]');
+
+            if (replicaRegions.length > 0 && repositoryName) {
+                const ready = await checkReplicaAvailability(repositoryName, imageTag, replicaRegions);
+                if (!ready) {
+                    console.log('Build succeeded; waiting for replicas to catch up.');
+                    return { IsComplete: false };
+                }
+            }
+
             return {
                 IsComplete: true,
                 Data: {

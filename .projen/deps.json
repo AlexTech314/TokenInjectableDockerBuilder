@@ -1,6 +1,16 @@
 {
   "dependencies": [
     {
+      "name": "@aws-cdk/integ-runner",
+      "version": "^2.197.0",
+      "type": "build"
+    },
+    {
+      "name": "@aws-cdk/integ-tests-alpha",
+      "version": "2.238.0-alpha.0",
+      "type": "build"
+    },
+    {
       "name": "@stylistic/eslint-plugin",
       "version": "^2",
       "type": "build"
@@ -75,6 +85,11 @@
     },
     {
       "name": "projen",
+      "type": "build"
+    },
+    {
+      "name": "token-injectable-docker-builder-v1",
+      "version": "npm:token-injectable-docker-builder@^1.13.0",
       "type": "build"
     },
     {

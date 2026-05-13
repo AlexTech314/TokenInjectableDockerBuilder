@@ -4,7 +4,7 @@
 
 ### TokenInjectableDockerBuilder <a name="TokenInjectableDockerBuilder" id="token-injectable-docker-builder.TokenInjectableDockerBuilder"></a>
 
-A CDK construct to build and push Docker images to an ECR repository using CodeBuild and Lambda custom resources, **then** retrieve the final image tag so that ECS/Lambda references use the exact digest.
+A CDK construct to build and push Docker images to an ECR repository using CodeBuild and Lambda custom resources, **then** retrieve the final image tag so that ECS/Lambda references use the exact built image.
 
 #### Initializers <a name="Initializers" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer"></a>
 
@@ -16,9 +16,9 @@ new TokenInjectableDockerBuilder(scope: Construct, id: string, props: TokenInjec
 
 | **Name** | **Type** | **Description** |
 | --- | --- | --- |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.scope">scope</a></code> | <code>constructs.Construct</code> | The scope in which to define this construct. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.id">id</a></code> | <code>string</code> | The scoped construct ID. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.props">props</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps">TokenInjectableDockerBuilderProps</a></code> | Configuration for building and pushing the Docker image. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.scope">scope</a></code> | <code>constructs.Construct</code> | *No description.* |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.id">id</a></code> | <code>string</code> | *No description.* |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.props">props</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps">TokenInjectableDockerBuilderProps</a></code> | *No description.* |
 
 ---
 
@@ -26,23 +26,17 @@ new TokenInjectableDockerBuilder(scope: Construct, id: string, props: TokenInjec
 
 - *Type:* constructs.Construct
 
-The scope in which to define this construct.
-
 ---
 
 ##### `id`<sup>Required</sup> <a name="id" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.id"></a>
 
 - *Type:* string
 
-The scoped construct ID.
-
 ---
 
 ##### `props`<sup>Required</sup> <a name="props" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.Initializer.parameter.props"></a>
 
 - *Type:* <a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps">TokenInjectableDockerBuilderProps</a>
-
-Configuration for building and pushing the Docker image.
 
 ---
 
@@ -52,6 +46,9 @@ Configuration for building and pushing the Docker image.
 | --- | --- |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.toString">toString</a></code> | Returns a string representation of this construct. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.with">with</a></code> | Applies one or more mixins to this construct. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.containerImageFor">containerImageFor</a></code> | Import the replicated repository as an ECS-compatible `ContainerImage` in a consumer scope (typically a stack in `region`). |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.dockerImageCodeFor">dockerImageCodeFor</a></code> | Import the replicated repository as a Lambda-compatible `DockerImageCode` in a consumer scope (typically a stack in `region`). |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.repositoryUriFor">repositoryUriFor</a></code> | Format the ECR repository URI for a given region. |
 
 ---
 
@@ -81,6 +78,69 @@ constructs.
 - *Type:* ...constructs.IMixin[]
 
 The mixins to apply.
+
+---
+
+##### `containerImageFor` <a name="containerImageFor" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.containerImageFor"></a>
+
+```typescript
+public containerImageFor(scope: Construct, region: string): ContainerImage
+```
+
+Import the replicated repository as an ECS-compatible `ContainerImage` in a consumer scope (typically a stack in `region`).
+
+The consumer's stack must have `crossRegionReferences: true` when
+`region` differs from the builder's region.
+
+###### `scope`<sup>Required</sup> <a name="scope" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.containerImageFor.parameter.scope"></a>
+
+- *Type:* constructs.Construct
+
+---
+
+###### `region`<sup>Required</sup> <a name="region" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.containerImageFor.parameter.region"></a>
+
+- *Type:* string
+
+---
+
+##### `dockerImageCodeFor` <a name="dockerImageCodeFor" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.dockerImageCodeFor"></a>
+
+```typescript
+public dockerImageCodeFor(scope: Construct, region: string): DockerImageCode
+```
+
+Import the replicated repository as a Lambda-compatible `DockerImageCode` in a consumer scope (typically a stack in `region`).
+
+The consumer's stack must have `crossRegionReferences: true` when
+`region` differs from the builder's region.
+
+###### `scope`<sup>Required</sup> <a name="scope" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.dockerImageCodeFor.parameter.scope"></a>
+
+- *Type:* constructs.Construct
+
+---
+
+###### `region`<sup>Required</sup> <a name="region" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.dockerImageCodeFor.parameter.region"></a>
+
+- *Type:* string
+
+---
+
+##### `repositoryUriFor` <a name="repositoryUriFor" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.repositoryUriFor"></a>
+
+```typescript
+public repositoryUriFor(region: string): string
+```
+
+Format the ECR repository URI for a given region.
+
+The region must
+be either the primary region or one of `replicaRegions`.
+
+###### `region`<sup>Required</sup> <a name="region" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.repositoryUriFor.parameter.region"></a>
+
+- *Type:* string
 
 ---
 
@@ -129,8 +189,10 @@ Any object.
 | **Name** | **Type** | **Description** |
 | --- | --- | --- |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.node">node</a></code> | <code>constructs.Node</code> | The tree node. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.containerImage">containerImage</a></code> | <code>aws-cdk-lib.aws_ecs.ContainerImage</code> | An ECS-compatible container image referencing the tag of the built Docker image. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.dockerImageCode">dockerImageCode</a></code> | <code>aws-cdk-lib.aws_lambda.DockerImageCode</code> | A Lambda-compatible DockerImageCode referencing the tag of the built Docker image. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.containerImage">containerImage</a></code> | <code>aws-cdk-lib.aws_ecs.ContainerImage</code> | ECS-compatible container image reference (primary region). |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.dockerImageCode">dockerImageCode</a></code> | <code>aws-cdk-lib.aws_lambda.DockerImageCode</code> | Lambda-compatible DockerImageCode reference (primary region). |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.imageTag">imageTag</a></code> | <code>string</code> | The resolved image tag (CFN token; |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.repositoryName">repositoryName</a></code> | <code>string</code> | The ECR repository name — preserved across replica regions. |
 
 ---
 
@@ -154,7 +216,7 @@ public readonly containerImage: ContainerImage;
 
 - *Type:* aws-cdk-lib.aws_ecs.ContainerImage
 
-An ECS-compatible container image referencing the tag of the built Docker image.
+ECS-compatible container image reference (primary region).
 
 ---
 
@@ -166,7 +228,33 @@ public readonly dockerImageCode: DockerImageCode;
 
 - *Type:* aws-cdk-lib.aws_lambda.DockerImageCode
 
-A Lambda-compatible DockerImageCode referencing the tag of the built Docker image.
+Lambda-compatible DockerImageCode reference (primary region).
+
+---
+
+##### `imageTag`<sup>Required</sup> <a name="imageTag" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.property.imageTag"></a>
+
+```typescript
+public readonly imageTag: string;
+```
+
+- *Type:* string
+
+The resolved image tag (CFN token;
+
+available at deploy time).
+
+---
+
+##### `repositoryName`<sup>Required</sup> <a name="repositoryName" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.property.repositoryName"></a>
+
+```typescript
+public readonly repositoryName: string;
+```
+
+- *Type:* string
+
+The ECR repository name — preserved across replica regions.
 
 ---
 
@@ -186,6 +274,7 @@ shared Lambdas have permission to start builds and read logs.
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.toString">toString</a></code> | Returns a string representation of this construct. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.with">with</a></code> | Applies one or more mixins to this construct. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject">registerProject</a></code> | Grant the shared Lambdas permission to start builds for a specific CodeBuild project and pull/push to its ECR repository. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerReplication">registerReplication</a></code> | Register a builder's replica regions with the singleton's replication-config custom resource. |
 
 ---
 
@@ -241,6 +330,32 @@ Grant the shared Lambdas permission to start builds for a specific CodeBuild pro
 ###### `encryptionKey`<sup>Optional</sup> <a name="encryptionKey" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerProject.parameter.encryptionKey"></a>
 
 - *Type:* aws-cdk-lib.aws_kms.Key
+
+---
+
+##### `registerReplication` <a name="registerReplication" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerReplication"></a>
+
+```typescript
+public registerReplication(repoName: string, replicaRegions: string[]): void
+```
+
+Register a builder's replica regions with the singleton's replication-config custom resource.
+
+Multiple builders contribute specs; the CR merges them into
+a single registry-wide configuration on every deploy.
+
+Also grants the `isComplete` Lambda permission to BatchGetImage on each
+replica region's repo so it can poll for replication availability.
+
+###### `repoName`<sup>Required</sup> <a name="repoName" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerReplication.parameter.repoName"></a>
+
+- *Type:* string
+
+---
+
+###### `replicaRegions`<sup>Required</sup> <a name="replicaRegions" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProvider.registerReplication.parameter.replicaRegions"></a>
+
+- *Type:* string[]
 
 ---
 
@@ -366,20 +481,19 @@ const tokenInjectableDockerBuilderProps: TokenInjectableDockerBuilderProps = { .
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.buildArgs">buildArgs</a></code> | <code>{[ key: string ]: string}</code> | Build arguments to pass to the Docker build process. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.buildLogGroup">buildLogGroup</a></code> | <code>aws-cdk-lib.aws_logs.ILogGroup</code> | CloudWatch log group for CodeBuild build logs. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.cacheDisabled">cacheDisabled</a></code> | <code>boolean</code> | When `true`, disables Docker layer caching. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval">completenessQueryInterval</a></code> | <code>aws-cdk-lib.Duration</code> | The query interval for checking if the CodeBuild project has completed. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.dockerLoginSecretArn">dockerLoginSecretArn</a></code> | <code>string</code> | The ARN of the AWS Secrets Manager secret containing Docker login credentials. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.ecrPullThroughCachePrefixes">ecrPullThroughCachePrefixes</a></code> | <code>string[]</code> | ECR pull-through cache repository prefixes to grant pull access to. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.exclude">exclude</a></code> | <code>string[]</code> | A list of file paths in the Docker directory to exclude from build. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file">file</a></code> | <code>string</code> | The name of the Dockerfile to use for the build. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.exclude">exclude</a></code> | <code>string[]</code> | File paths in the Docker directory to exclude from the build asset. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.file">file</a></code> | <code>string</code> | Name of the Dockerfile (passed as `-f`). |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.installCommands">installCommands</a></code> | <code>string[]</code> | Custom commands to run during the install phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.kmsEncryption">kmsEncryption</a></code> | <code>boolean</code> | Whether to enable KMS encryption for the ECR repository. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.maxImageCount">maxImageCount</a></code> | <code>number</code> | Maximum number of tagged images to retain in the ECR repository. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.platform">platform</a></code> | <code>string</code> | Target platform for the Docker image. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands">preBuildCommands</a></code> | <code>string[]</code> | Custom commands to run during the pre_build phase of CodeBuild. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider">provider</a></code> | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a></code> | Shared provider for the custom resource Lambdas. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.replicaRegions">replicaRegions</a></code> | <code>string[]</code> | Additional AWS regions to replicate the built image to via ECR's native registry replication. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.retainBuildLogs">retainBuildLogs</a></code> | <code>boolean</code> | When `true`, creates a CloudWatch log group outside of CloudFormation (`/docker-builder/<projectName>`) and directs CodeBuild output there. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.securityGroups">securityGroups</a></code> | <code>aws-cdk-lib.aws_ec2.ISecurityGroup[]</code> | The security groups to attach to the CodeBuild project. |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.subnetSelection">subnetSelection</a></code> | <code>aws-cdk-lib.aws_ec2.SubnetSelection</code> | The subnet selection to specify which subnets to use within the VPC. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.securityGroups">securityGroups</a></code> | <code>aws-cdk-lib.aws_ec2.ISecurityGroup[]</code> | Security groups attached to the CodeBuild project. |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.subnetSelection">subnetSelection</a></code> | <code>aws-cdk-lib.aws_ec2.SubnetSelection</code> | Subnet selection within the VPC. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.vpc">vpc</a></code> | <code>aws-cdk-lib.aws_ec2.IVpc</code> | The VPC in which the CodeBuild project will be deployed. |
 
 ---
@@ -427,12 +541,9 @@ public readonly buildLogGroup: ILogGroup;
 ```
 
 - *Type:* aws-cdk-lib.aws_logs.ILogGroup
-- *Default:* CodeBuild default logging (logs are deleted on rollback)
+- *Default:* CodeBuild default logging.
 
 CloudWatch log group for CodeBuild build logs.
-
-When provided with a RETAIN removal policy, build logs survive rollbacks
-and stack deletion for debugging.
 
 ---
 
@@ -447,24 +558,6 @@ public readonly cacheDisabled: boolean;
 
 When `true`, disables Docker layer caching.
 
-Every build runs from scratch.
-Use for debugging, corrupted cache, or major dependency changes.
-
----
-
-##### `completenessQueryInterval`<sup>Optional</sup> <a name="completenessQueryInterval" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.completenessQueryInterval"></a>
-
-```typescript
-public readonly completenessQueryInterval: Duration;
-```
-
-- *Type:* aws-cdk-lib.Duration
-- *Default:* Duration.seconds(30)
-
-The query interval for checking if the CodeBuild project has completed.
-
-This determines how frequently the custom resource polls for build completion.
-
 ---
 
 ##### `dockerLoginSecretArn`<sup>Optional</sup> <a name="dockerLoginSecretArn" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.dockerLoginSecretArn"></a>
@@ -474,28 +567,14 @@ public readonly dockerLoginSecretArn: string;
 ```
 
 - *Type:* string
+- *Default:* No Docker Hub login.
 
 The ARN of the AWS Secrets Manager secret containing Docker login credentials.
 
-This secret should store a JSON object with the following structure:
-```json
-{
-  "username": "my-docker-username",
-  "password": "my-docker-password"
-}
-```
-If not provided (or not needed), the construct will skip Docker Hub login.
-
-**Note**: The secret must be in the same region as the stack.
+The secret must store a JSON object: `{"username":"...","password":"..."}`.
+Must be in the same region as the stack.
 
 ---
-
-*Example*
-
-```typescript
-'arn:aws:secretsmanager:us-east-1:123456789012:secret:DockerLoginSecret'
-```
-
 
 ##### `ecrPullThroughCachePrefixes`<sup>Optional</sup> <a name="ecrPullThroughCachePrefixes" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.ecrPullThroughCachePrefixes"></a>
 
@@ -504,14 +583,9 @@ public readonly ecrPullThroughCachePrefixes: string[];
 ```
 
 - *Type:* string[]
-- *Default:* No pull-through cache access
+- *Default:* No pull-through cache access.
 
 ECR pull-through cache repository prefixes to grant pull access to.
-
-Use when your Dockerfile references base images from ECR pull-through
-cache (e.g. docker-hub/library/node:20-slim, ghcr/org/image:tag).
-The CodeBuild role will be granted ecr:BatchGetImage, ecr:GetDownloadUrlForLayer,
-and ecr:BatchCheckLayerAvailability on repositories matching each prefix.
 
 ---
 
@@ -529,11 +603,11 @@ public readonly exclude: string[];
 ```
 
 - *Type:* string[]
-- *Default:* No file path exclusions
+- *Default:* No file path exclusions.
 
-A list of file paths in the Docker directory to exclude from build.
+File paths in the Docker directory to exclude from the build asset.
 
-Will use paths in .dockerignore file if present.
+Falls back to `.dockerignore` if present.
 
 ---
 
@@ -546,9 +620,7 @@ public readonly file: string;
 - *Type:* string
 - *Default:* 'Dockerfile'
 
-The name of the Dockerfile to use for the build.
-
-Passed as `--file` to `docker build`.
+Name of the Dockerfile (passed as `-f`).
 
 ---
 
@@ -570,16 +642,6 @@ public readonly installCommands: string[];
 
 Custom commands to run during the install phase of CodeBuild.
 
-**Example**:
-```ts
-installCommands: [
-  'echo "Updating package lists..."',
-  'apt-get update -y',
-  'echo "Installing required packages..."',
-  'apt-get install -y curl dnsutils',
-],
-```
-
 ---
 
 ##### `kmsEncryption`<sup>Optional</sup> <a name="kmsEncryption" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.kmsEncryption"></a>
@@ -592,30 +654,6 @@ public readonly kmsEncryption: boolean;
 - *Default:* false
 
 Whether to enable KMS encryption for the ECR repository.
-
-If `true`, a KMS key will be created for encrypting ECR images.
-If `false`, the repository will use AES-256 encryption.
-
----
-
-##### `maxImageCount`<sup>Optional</sup> <a name="maxImageCount" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.maxImageCount"></a>
-
-```typescript
-public readonly maxImageCount: number;
-```
-
-- *Type:* number
-- *Default:* undefined - no count-based expiration; only untagged-after-30-days
-
-Maximum number of tagged images to retain in the ECR repository.
-
-**WARNING:** Lambda functions pin images by digest internally even when
-referenced by tag. Setting this can delete images that Lambda functions
-(and ECS tasks) are still pinned to, breaking the next configuration
-update with "Image ID cannot be found".
-
-Leave undefined (the default) for production use. Untagged images are
-always cleaned up after 30 days regardless of this setting.
 
 ---
 
@@ -630,9 +668,6 @@ public readonly platform: string;
 
 Target platform for the Docker image.
 
-When set to `'linux/arm64'`, the construct uses a native ARM/Graviton
-CodeBuild instance for fast builds without emulation.
-
 ---
 
 ##### `preBuildCommands`<sup>Optional</sup> <a name="preBuildCommands" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.preBuildCommands"></a>
@@ -646,14 +681,6 @@ public readonly preBuildCommands: string[];
 
 Custom commands to run during the pre_build phase of CodeBuild.
 
-**Example**:
-```ts
-preBuildCommands: [
-  'echo "Fetching configuration from private API..."',
-  'curl -o config.json https://api.example.com/config',
-],
-```
-
 ---
 
 ##### `provider`<sup>Optional</sup> <a name="provider" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.provider"></a>
@@ -663,16 +690,59 @@ public readonly provider: TokenInjectableDockerBuilderProvider;
 ```
 
 - *Type:* <a href="#token-injectable-docker-builder.TokenInjectableDockerBuilderProvider">TokenInjectableDockerBuilderProvider</a>
-- *Default:* A new provider is created per builder instance
+- *Default:* Per-stack singleton provider, created on first use.
 
 Shared provider for the custom resource Lambdas.
 
-Use `TokenInjectableDockerBuilderProvider.getOrCreate(this)` to create
-a singleton that is shared across all builders in the same stack.
-
-When omitted, each builder creates its own Lambdas (original behavior).
+Pass `TokenInjectableDockerBuilderProvider.getOrCreate(this, { queryInterval })`
+if you need a non-default query interval. Otherwise, the construct will
+call `getOrCreate(this)` itself and reuse the per-stack singleton.
 
 ---
+
+##### `replicaRegions`<sup>Optional</sup> <a name="replicaRegions" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.replicaRegions"></a>
+
+```typescript
+public readonly replicaRegions: string[];
+```
+
+- *Type:* string[]
+- *Default:* [] - no replication
+
+Additional AWS regions to replicate the built image to via ECR's native registry replication.
+
+The image is pushed to the primary
+region's ECR as usual; ECR asynchronously replicates the same
+`repositoryName` + `imageTag` to each region listed here.
+
+Consumers in another region (a Lambda in `us-west-2` referencing an
+image built in `us-east-1`) can use `dockerImageCodeFor(region)` or
+`containerImageFor(region)` to import the replicated image.
+
+The custom resource waits for replication to complete before
+signalling deploy-complete, so downstream stacks can safely deploy
+immediately after.
+
+**Caveats:**
+- Cross-region replication is not supported between AWS partitions.
+- Replicas do **not** inherit the primary's encryption (defaults to
+  AES-256), lifecycle policies, or repository policies.
+- Replicated repositories persist on stack deletion — AWS does not
+  auto-delete them. Clean up manually via the ECR console / CLI if
+  needed.
+- Both the builder stack and any consumer stack in another region
+  must set `crossRegionReferences: true` for the image tag to flow.
+- Stacks must have a concrete region (`env: { account, region }`),
+  not the env-agnostic default.
+
+---
+
+*Example*
+
+```typescript
+['us-west-2', 'eu-west-1']
+```
+
 
 ##### `retainBuildLogs`<sup>Optional</sup> <a name="retainBuildLogs" id="token-injectable-docker-builder.TokenInjectableDockerBuilderProps.property.retainBuildLogs"></a>
 
@@ -685,11 +755,7 @@ public readonly retainBuildLogs: boolean;
 
 When `true`, creates a CloudWatch log group outside of CloudFormation (`/docker-builder/<projectName>`) and directs CodeBuild output there.
 
-Because the log group is managed imperatively (not by CloudFormation),
-it survives stack rollbacks and preserves full build logs for debugging.
-A 7-day retention policy is applied so old logs auto-expire.
-
-Set to `false` after debugging to delete the log group and clean up.
+Survives stack rollbacks for debugging. 7-day retention.
 
 ---
 
@@ -700,11 +766,9 @@ public readonly securityGroups: ISecurityGroup[];
 ```
 
 - *Type:* aws-cdk-lib.aws_ec2.ISecurityGroup[]
-- *Default:* No security groups are attached.
+- *Default:* No security groups attached.
 
-The security groups to attach to the CodeBuild project.
-
-These define the network access rules for the CodeBuild project.
+Security groups attached to the CodeBuild project.
 
 ---
 
@@ -715,11 +779,9 @@ public readonly subnetSelection: SubnetSelection;
 ```
 
 - *Type:* aws-cdk-lib.aws_ec2.SubnetSelection
-- *Default:* All subnets in the VPC are used.
+- *Default:* All subnets in the VPC.
 
-The subnet selection to specify which subnets to use within the VPC.
-
-Allows the user to select private, public, or isolated subnets.
+Subnet selection within the VPC.
 
 ---
 
@@ -730,11 +792,9 @@ public readonly vpc: IVpc;
 ```
 
 - *Type:* aws-cdk-lib.aws_ec2.IVpc
-- *Default:* No VPC is attached, and the CodeBuild project will use public internet.
+- *Default:* CodeBuild uses public internet.
 
 The VPC in which the CodeBuild project will be deployed.
-
-If provided, the CodeBuild project will be launched within the specified VPC.
 
 ---
 
