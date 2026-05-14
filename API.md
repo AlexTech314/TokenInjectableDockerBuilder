@@ -92,6 +92,11 @@ Import the replicated repository as an ECS-compatible `ContainerImage` in a cons
 The consumer's stack must have `crossRegionReferences: true` when
 `region` differs from the builder's region.
 
+Cross-region consumers receive `imageTagPlain` (a synth-time string)
+rather than `imageTag` (a CFN token). Using the token would cause CDK to
+auto-create a `CrossRegionExportWriter` whose safety check wedges every
+time the tag value changes — i.e. every real code change.
+
 ###### `scope`<sup>Required</sup> <a name="scope" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.containerImageFor.parameter.scope"></a>
 
 - *Type:* constructs.Construct
@@ -114,6 +119,11 @@ Import the replicated repository as a Lambda-compatible `DockerImageCode` in a c
 
 The consumer's stack must have `crossRegionReferences: true` when
 `region` differs from the builder's region.
+
+Cross-region consumers receive `imageTagPlain` (a synth-time string)
+rather than `imageTag` (a CFN token). Using the token would cause CDK to
+auto-create a `CrossRegionExportWriter` whose safety check wedges every
+time the tag value changes — i.e. every real code change.
 
 ###### `scope`<sup>Required</sup> <a name="scope" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.dockerImageCodeFor.parameter.scope"></a>
 
@@ -191,7 +201,8 @@ Any object.
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.node">node</a></code> | <code>constructs.Node</code> | The tree node. |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.containerImage">containerImage</a></code> | <code>aws-cdk-lib.aws_ecs.ContainerImage</code> | ECS-compatible container image reference (primary region). |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.dockerImageCode">dockerImageCode</a></code> | <code>aws-cdk-lib.aws_lambda.DockerImageCode</code> | Lambda-compatible DockerImageCode reference (primary region). |
-| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.imageTag">imageTag</a></code> | <code>string</code> | The resolved image tag (CFN token; |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.imageTag">imageTag</a></code> | <code>string</code> | The resolved image tag (CFN token; available at deploy time). |
+| <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.imageTagPlain">imageTagPlain</a></code> | <code>string</code> | The deterministic image tag as a plain synth-time string (no CFN token). |
 | <code><a href="#token-injectable-docker-builder.TokenInjectableDockerBuilder.property.repositoryName">repositoryName</a></code> | <code>string</code> | The ECR repository name — preserved across replica regions. |
 
 ---
@@ -240,9 +251,34 @@ public readonly imageTag: string;
 
 - *Type:* string
 
-The resolved image tag (CFN token;
+The resolved image tag (CFN token; available at deploy time).
 
-available at deploy time).
+Safe to use anywhere the consumer is in the **same region** as the
+builder (same stack or different stack). For cross-region consumers
+use `imageTagPlain` — `imageTag` would trigger CDK's
+`CrossRegionExportWriter` and wedge on any tag change.
+
+---
+
+##### `imageTagPlain`<sup>Required</sup> <a name="imageTagPlain" id="token-injectable-docker-builder.TokenInjectableDockerBuilder.property.imageTagPlain"></a>
+
+```typescript
+public readonly imageTagPlain: string;
+```
+
+- *Type:* string
+
+The deterministic image tag as a plain synth-time string (no CFN token).
+
+Same value as `imageTag` but resolved immediately — useful for cross-region
+consumers, where the CFN-token form would trigger CDK to auto-create a
+`CrossRegionExportWriter`. That writer has an over-strict safety check
+that fails any update where the tag value changes (i.e. every real code
+change), wedging the stack in `UPDATE_ROLLBACK_FAILED`.
+
+`containerImageFor` and `dockerImageCodeFor` use this string automatically
+when the consumer region differs from the primary region, so callers
+normally don't reference this property directly.
 
 ---
 

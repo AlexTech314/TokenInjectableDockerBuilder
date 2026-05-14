@@ -209,8 +209,30 @@ export class TokenInjectableDockerBuilder extends Construct {
   /** The ECR repository name — preserved across replica regions. */
   public readonly repositoryName: string;
 
-  /** The resolved image tag (CFN token; available at deploy time). */
+  /**
+   * The resolved image tag (CFN token; available at deploy time).
+   *
+   * Safe to use anywhere the consumer is in the **same region** as the
+   * builder (same stack or different stack). For cross-region consumers
+   * use `imageTagPlain` — `imageTag` would trigger CDK's
+   * `CrossRegionExportWriter` and wedge on any tag change.
+   */
   public readonly imageTag: string;
+
+  /**
+   * The deterministic image tag as a plain synth-time string (no CFN token).
+   *
+   * Same value as `imageTag` but resolved immediately — useful for cross-region
+   * consumers, where the CFN-token form would trigger CDK to auto-create a
+   * `CrossRegionExportWriter`. That writer has an over-strict safety check
+   * that fails any update where the tag value changes (i.e. every real code
+   * change), wedging the stack in `UPDATE_ROLLBACK_FAILED`.
+   *
+   * `containerImageFor` and `dockerImageCodeFor` use this string automatically
+   * when the consumer region differs from the primary region, so callers
+   * normally don't reference this property directly.
+   */
+  public readonly imageTagPlain: string;
 
   private readonly primaryRegion: string;
   private readonly accountId: string;
@@ -366,6 +388,9 @@ export class TokenInjectableDockerBuilder extends Construct {
     // remain in ECR for the life of the repository.
     const imageTagRef = buildTriggerResource.getAttString('ImageTag');
     this.imageTag = imageTagRef;
+    // Plain synth-time form, used by cross-region helpers to bypass CDK's
+    // CrossRegionExportWriter (see imageTagPlain docs).
+    this.imageTagPlain = imageTag;
     this.repositoryName = this.ecrRepository.repositoryName;
     this.containerImage = ContainerImage.fromEcrRepository(this.ecrRepository, imageTagRef);
     this.dockerImageCode = DockerImageCode.fromEcr(this.ecrRepository, {
@@ -388,12 +413,16 @@ export class TokenInjectableDockerBuilder extends Construct {
    *
    * The consumer's stack must have `crossRegionReferences: true` when
    * `region` differs from the builder's region.
+   *
+   * Cross-region consumers receive `imageTagPlain` (a synth-time string)
+   * rather than `imageTag` (a CFN token). Using the token would cause CDK to
+   * auto-create a `CrossRegionExportWriter` whose safety check wedges every
+   * time the tag value changes — i.e. every real code change.
    */
   public containerImageFor(scope: Construct, region: string): ContainerImage {
-    return ContainerImage.fromEcrRepository(
-      this.importRepoFor(scope, region),
-      this.imageTag,
-    );
+    this.assertRegionIsKnown(region);
+    const tag = region === this.primaryRegion ? this.imageTag : this.imageTagPlain;
+    return ContainerImage.fromEcrRepository(this.importRepoFor(scope, region), tag);
   }
 
   /**
@@ -402,11 +431,16 @@ export class TokenInjectableDockerBuilder extends Construct {
    *
    * The consumer's stack must have `crossRegionReferences: true` when
    * `region` differs from the builder's region.
+   *
+   * Cross-region consumers receive `imageTagPlain` (a synth-time string)
+   * rather than `imageTag` (a CFN token). Using the token would cause CDK to
+   * auto-create a `CrossRegionExportWriter` whose safety check wedges every
+   * time the tag value changes — i.e. every real code change.
    */
   public dockerImageCodeFor(scope: Construct, region: string): DockerImageCode {
-    return DockerImageCode.fromEcr(this.importRepoFor(scope, region), {
-      tagOrDigest: this.imageTag,
-    });
+    this.assertRegionIsKnown(region);
+    const tag = region === this.primaryRegion ? this.imageTag : this.imageTagPlain;
+    return DockerImageCode.fromEcr(this.importRepoFor(scope, region), { tagOrDigest: tag });
   }
 
   private importRepoFor(scope: Construct, region: string): Repository {
