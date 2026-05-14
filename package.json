@@ -35,7 +35,7 @@
     "local-synth": "npx cdk synth --app \"npx ts-node test/integ.default.ts\"",
     "integ": "npx integ-runner --update-on-failed --directory test",
     "integ-migration": "npx cdk deploy TidbMigrationStack --app \"npx ts-node test/migration/before-v1.ts\" --require-approval=never && npx cdk deploy TidbMigrationStack --app \"npx ts-node test/migration/after-v2.ts\" --require-approval=never && npx cdk destroy TidbMigrationStack --app \"npx ts-node test/migration/after-v2.ts\" --force",
-    "integ-redeploy": "BUILDER_BUILD_ARG=v1 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack --app \"npx ts-node test/redeploy/redeploy.ts\" --require-approval=never && BUILDER_BUILD_ARG=v2 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack --app \"npx ts-node test/redeploy/redeploy.ts\" --require-approval=never && BUILDER_BUILD_ARG=v2 npx cdk destroy TidbRedeployStack TidbRedeployConsumerStack --app \"npx ts-node test/redeploy/redeploy.ts\" --force"
+    "integ-redeploy": "BUILDER_BUILD_ARG=v1 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack TidbRedeploySameRegionConsumerStack --app \"npx ts-node test/redeploy/redeploy.ts\" --require-approval=never && BUILDER_BUILD_ARG=v2 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack TidbRedeploySameRegionConsumerStack --app \"npx ts-node test/redeploy/redeploy.ts\" --require-approval=never && BUILDER_BUILD_ARG=v2 npx cdk destroy TidbRedeployStack TidbRedeployConsumerStack TidbRedeploySameRegionConsumerStack --app \"npx ts-node test/redeploy/redeploy.ts\" --force"
   },
   "author": {
     "name": "AlexTech314",

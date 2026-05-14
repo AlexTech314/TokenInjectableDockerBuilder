@@ -414,14 +414,19 @@ export class TokenInjectableDockerBuilder extends Construct {
    * The consumer's stack must have `crossRegionReferences: true` when
    * `region` differs from the builder's region.
    *
-   * Cross-region consumers receive `imageTagPlain` (a synth-time string)
-   * rather than `imageTag` (a CFN token). Using the token would cause CDK to
-   * auto-create a `CrossRegionExportWriter` whose safety check wedges every
-   * time the tag value changes — i.e. every real code change.
+   * Cross-stack consumers (same region or different region) receive
+   * `imageTagPlain` (a synth-time string) rather than `imageTag` (a CFN
+   * token). Using the token would cause CDK to auto-create either a
+   * `CrossRegionExportWriter` (cross-region) or a cross-stack
+   * `Fn::Export` / `Fn::ImportValue` (same-region). Both wedge any deploy
+   * that changes the imageTag value, because CFN refuses to "update an
+   * export in use" or runs the writer's "Some exports have changed" check.
+   * Same-stack callers keep the token form so the Lambda still has a CFN
+   * dependency on the build trigger CR.
    */
   public containerImageFor(scope: Construct, region: string): ContainerImage {
     this.assertRegionIsKnown(region);
-    const tag = region === this.primaryRegion ? this.imageTag : this.imageTagPlain;
+    const tag = this.tagForScope(scope);
     return ContainerImage.fromEcrRepository(this.importRepoFor(scope, region), tag);
   }
 
@@ -432,15 +437,44 @@ export class TokenInjectableDockerBuilder extends Construct {
    * The consumer's stack must have `crossRegionReferences: true` when
    * `region` differs from the builder's region.
    *
-   * Cross-region consumers receive `imageTagPlain` (a synth-time string)
-   * rather than `imageTag` (a CFN token). Using the token would cause CDK to
-   * auto-create a `CrossRegionExportWriter` whose safety check wedges every
-   * time the tag value changes — i.e. every real code change.
+   * Cross-stack consumers (same region or different region) receive
+   * `imageTagPlain` (a synth-time string) rather than `imageTag` (a CFN
+   * token). See `containerImageFor` for the rationale.
    */
   public dockerImageCodeFor(scope: Construct, region: string): DockerImageCode {
     this.assertRegionIsKnown(region);
-    const tag = region === this.primaryRegion ? this.imageTag : this.imageTagPlain;
+    const tag = this.tagForScope(scope);
     return DockerImageCode.fromEcr(this.importRepoFor(scope, region), { tagOrDigest: tag });
+  }
+
+  /**
+   * Pick which tag form to hand to a cross-stack consumer:
+   *   - same stack as the builder  → CFN-token form (`imageTag`), preserves
+   *     the CFN dependency from the consumer onto the build trigger CR.
+   *   - different stack            → synth-time plain string (`imageTagPlain`),
+   *     so CDK doesn't auto-generate a cross-stack export/import or a
+   *     `CrossRegionExportWriter`. Both would wedge on tag changes.
+   *
+   * For cross-stack same-region consumers in the same CDK app we also wire
+   * an explicit `Stack.addDependency`, since dropping the CFN export removes
+   * the implicit deploy ordering. Cross-region consumers in the same app
+   * are ordered by their CDK Stage / pipeline; cross-app consumers (e.g.
+   * separate pipelines) own their own orchestration.
+   */
+  private tagForScope(scope: Construct): string {
+    const consumerStack = Stack.of(scope);
+    const producerStack = Stack.of(this);
+    if (consumerStack === producerStack) {
+      return this.imageTag;
+    }
+    if (
+      consumerStack.account === producerStack.account &&
+      consumerStack.region === producerStack.region &&
+      consumerStack.node.root === producerStack.node.root
+    ) {
+      consumerStack.addDependency(producerStack);
+    }
+    return this.imageTagPlain;
   }
 
   private importRepoFor(scope: Construct, region: string): Repository {

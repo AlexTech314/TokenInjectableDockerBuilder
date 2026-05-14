@@ -78,15 +78,20 @@ project.addScripts({
     'npx cdk deploy TidbMigrationStack --app "npx ts-node test/migration/before-v1.ts" --require-approval=never && '
     + 'npx cdk deploy TidbMigrationStack --app "npx ts-node test/migration/after-v2.ts" --require-approval=never && '
     + 'npx cdk destroy TidbMigrationStack --app "npx ts-node test/migration/after-v2.ts" --force',
-  // Cross-region redeploy regression test for the
-  // "Some exports have changed!" wedge. Deploys with BUILD_ARG=v1, then
-  // again with BUILD_ARG=v2 (different imageTag), then tears down. The
-  // phase-2 deploy is the regression guard — pre-fix it would fail with
-  // a `CrossRegionExportWriter` UPDATE_FAILED; post-fix it must succeed.
+  // Cross-stack redeploy regression test for the imageTag wedge. Exercises
+  // three scenarios in one app so phase 2 (the regression guard) catches
+  // every flavour of the bug at once:
+  //   - Same-stack consumer  (keeps the CFN-token form, preserves CR dep)
+  //   - Same-region cross-stack consumer (v2.0.4 fix: plain string, no Fn::Export)
+  //   - Cross-region cross-stack consumer (v2.0.3 fix: plain string, no writer)
+  // Deploys with BUILD_ARG=v1, redeploys with BUILD_ARG=v2 (different imageTag),
+  // then tears down. Pre-fix, phase 2 fails with either "Some exports have
+  // changed" or "Cannot update export ... as it is in use"; post-fix it must
+  // succeed.
   'integ-redeploy':
-    'BUILDER_BUILD_ARG=v1 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack --app "npx ts-node test/redeploy/redeploy.ts" --require-approval=never && '
-    + 'BUILDER_BUILD_ARG=v2 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack --app "npx ts-node test/redeploy/redeploy.ts" --require-approval=never && '
-    + 'BUILDER_BUILD_ARG=v2 npx cdk destroy TidbRedeployStack TidbRedeployConsumerStack --app "npx ts-node test/redeploy/redeploy.ts" --force',
+    'BUILDER_BUILD_ARG=v1 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack TidbRedeploySameRegionConsumerStack --app "npx ts-node test/redeploy/redeploy.ts" --require-approval=never && '
+    + 'BUILDER_BUILD_ARG=v2 npx cdk deploy TidbRedeployStack TidbRedeployConsumerStack TidbRedeploySameRegionConsumerStack --app "npx ts-node test/redeploy/redeploy.ts" --require-approval=never && '
+    + 'BUILDER_BUILD_ARG=v2 npx cdk destroy TidbRedeployStack TidbRedeployConsumerStack TidbRedeploySameRegionConsumerStack --app "npx ts-node test/redeploy/redeploy.ts" --force',
 });
 
 project.synth();
